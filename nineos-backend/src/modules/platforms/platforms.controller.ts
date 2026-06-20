@@ -17,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { GatewayAuthGuard } from '../../common/guards/gateway-auth.guard';
 import { PlatformsService } from './platforms.service';
+import { PlatformKpiService } from './platform-kpi.service';
 import { UpsertConnectionDto } from './dto/upsert-connection.dto';
 
 @ApiTags('Platforms')
@@ -24,7 +25,7 @@ import { UpsertConnectionDto } from './dto/upsert-connection.dto';
 @UseGuards(GatewayAuthGuard)
 @Controller('platforms')
 export class PlatformsController {
-  constructor(private readonly svc: PlatformsService) {}
+  constructor(private readonly svc: PlatformsService, private readonly kpi: PlatformKpiService) {}
 
   @Get()
   @ApiOperation({ summary: 'List 4 platform + status koneksi ringkas' })
@@ -66,5 +67,20 @@ export class PlatformsController {
   @ApiParam({ name: 'slug', example: 'matcha' })
   getEndpoints(@Param('slug') slug: string) {
     return this.svc.getEndpoints(slug);
+  }
+
+  @Get(':slug/kpi')
+  @ApiOperation({ summary: 'Fetch KPI live dari backend platform (via /nineos/kpi)' })
+  @ApiParam({ name: 'slug', example: 'krama' })
+  @ApiQuery({ name: 'period', required: false, enum: ['today', 'week', 'month'] })
+  getPlatformKpi(@Param('slug') slug: string, @Query('period') period?: 'today' | 'week' | 'month') {
+    return this.kpi.fetchKpi(slug, period ?? 'today');
+  }
+
+  @Get('kpi/all')
+  @ApiOperation({ summary: 'Fetch KPI dari semua platform yang sudah connected' })
+  @ApiQuery({ name: 'period', required: false, enum: ['today', 'week', 'month'] })
+  getAllKpi(@Query('period') period?: 'today' | 'week' | 'month') {
+    return this.kpi.fetchAllKpi(period ?? 'today');
   }
 }
