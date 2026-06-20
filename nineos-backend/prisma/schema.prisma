@@ -1,0 +1,444 @@
+// NineOS — Prisma Schema
+// Wave 1, Modul 1: Platform Configuration & Connection
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// Modul 1 — Platform Configuration & Connection
+// ============================================================
+
+model Platform {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug                 String   @unique @db.VarChar(50)
+  name                 String   @db.VarChar(100)
+  description          String?
+  logoUrl              String?
+  themePrimaryColor    String   @default("#A32D2D") @db.VarChar(7)
+  themeSecondaryColor  String   @default("#121212") @db.VarChar(7)
+  readinessStatus      String   @default("not_ready") @db.VarChar(20)
+  isPriority           Boolean  @default(false)
+  sortOrder            Int      @default(0)
+  createdAt            DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  connections    PlatformConnection[]
+  healthLogs     PlatformHealthLog[]
+  endpoints      PlatformEndpoint[]
+  syncJobs       AutomationSyncJob[]
+  hdChannels     HelpdeskChannel[]
+  hdSettings     HelpdeskSettings?
+  hdKb           HelpdeskKnowledgeBase[]
+  hdConversations HelpdeskConversation[]
+  socialAccounts      SocialAccount[]
+  contentItems        ContentItem[]
+  automationPipelines AutomationPipeline[]
+  reportSchedules     ReportSchedule[]
+  automationAlerts    AutomationAlert[]
+  reportLogs          ReportLog[]
+  executiveDataSources ExecutiveDataSource[]
+
+  @@map("platforms")
+}
+
+model PlatformConnection {
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId                  String    @db.Uuid
+  environment                 String    @default("staging") @db.VarChar(20)
+  baseUrl                     String
+  authType                    String    @default("api_key") @db.VarChar(20)
+  apiKeyEncrypted             String?
+  oauthClientId               String?
+  oauthClientSecretEncrypted  String?
+  oauthAccessTokenEncrypted   String?
+  oauthRefreshTokenEncrypted  String?
+  webhookSecretEncrypted      String?
+  connectionStatus            String    @default("pending") @db.VarChar(20)
+  lastCheckedAt               DateTime? @db.Timestamptz(6)
+  lastError                   String?
+  createdAt                   DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt                   DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  platform Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@unique([platformId, environment])
+  @@map("platform_connections")
+}
+
+model PlatformHealthLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId     String   @db.Uuid
+  checkedAt      DateTime @default(now()) @db.Timestamptz(6)
+  status         String   @db.VarChar(20)
+  responseTimeMs Int?
+  errorDetail    String?
+
+  platform Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@map("platform_health_logs")
+}
+
+model PlatformEndpoint {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId  String  @db.Uuid
+  capability  String  @db.VarChar(50)
+  method      String  @default("GET") @db.VarChar(10)
+  path        String
+  description String?
+  isActive    Boolean @default(true)
+
+  platform Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@unique([platformId, capability])
+  @@map("platform_endpoints")
+}
+
+model AutomationSyncJob {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId  String?   @db.Uuid
+  jobType     String    @db.VarChar(50)
+  triggeredBy String    @default("n8n") @db.VarChar(20)
+  status      String    @default("running") @db.VarChar(20)
+  payload     Json?
+  result      Json?
+  startedAt   DateTime  @default(now()) @db.Timestamptz(6)
+  finishedAt  DateTime? @db.Timestamptz(6)
+
+  platform Platform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+
+  @@map("automation_sync_jobs")
+}
+
+// ============================================================
+// Modul 2 — HelpDesk (Automasi Q&A)
+// ============================================================
+
+model HelpdeskChannel {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId                String   @db.Uuid
+  channelType               String   @db.VarChar(20)
+  channelIdentifier         String   @db.VarChar(255)
+  accessTokenEncrypted      String?
+  webhookVerifyTokenEncrypted String?
+  isActive                  Boolean  @default(true)
+  createdAt                 DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt                 DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  platform Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@unique([platformId, channelType])
+  @@map("helpdesk_channels")
+}
+
+model HelpdeskSettings {
+  platformId           String   @id @db.Uuid
+  autoReplyEnabled     Boolean  @default(true)
+  confidenceThreshold  Decimal  @default(0.75) @db.Decimal(3, 2)
+  escalationKeywords   String[] @default(["refund", "komplain", "marah", "tipu"])
+  fallbackMessage      String   @default("Terima kasih, pesanmu sudah kami terima. Tim kami akan membalas segera.")
+  updatedAt            DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  platform Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@map("helpdesk_settings")
+}
+
+model HelpdeskKnowledgeBase {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId  String   @db.Uuid
+  category    String?  @db.VarChar(50)
+  question    String
+  answer      String
+  tags        String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  platform Platform          @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  messages HelpdeskMessage[]
+
+  @@map("helpdesk_knowledge_base")
+}
+
+model HelpdeskConversation {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId         String    @db.Uuid
+  channelType        String    @db.VarChar(20)
+  customerIdentifier String    @db.VarChar(255)
+  customerName       String?   @db.VarChar(150)
+  status             String    @default("open") @db.VarChar(20)
+  assignedAgent      String?   @db.VarChar(150)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(6)
+  lastMessageAt      DateTime  @default(now()) @db.Timestamptz(6)
+
+  platform    Platform             @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  messages    HelpdeskMessage[]
+  escalations HelpdeskEscalation[]
+
+  @@map("helpdesk_conversations")
+}
+
+model HelpdeskMessage {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId    String    @db.Uuid
+  senderType        String    @db.VarChar(20)
+  messageText       String
+  aiConfidenceScore Decimal?  @db.Decimal(3, 2)
+  matchedKbId       String?   @db.Uuid
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+
+  conversation HelpdeskConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  matchedKb    HelpdeskKnowledgeBase? @relation(fields: [matchedKbId], references: [id], onDelete: SetNull)
+
+  @@map("helpdesk_messages")
+}
+
+model HelpdeskEscalation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String    @db.Uuid
+  reason         String    @db.VarChar(50)
+  escalatedAt    DateTime  @default(now()) @db.Timestamptz(6)
+  resolvedAt     DateTime? @db.Timestamptz(6)
+  resolvedBy     String?   @db.VarChar(150)
+
+  conversation HelpdeskConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("helpdesk_escalations")
+}
+
+// ============================================================
+// Modul 3 — Social Media (Auto Posting & Scheduler)
+// ============================================================
+
+model SocialAccount {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId            String    @db.Uuid
+  channelType           String    @db.VarChar(20)
+  accountHandle         String    @db.VarChar(150)
+  accountIdExternal     String?   @db.VarChar(150)
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+  tokenExpiresAt        DateTime? @db.Timestamptz(6)
+  isActive              Boolean   @default(true)
+  connectedAt           DateTime? @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  platform  Platform          @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  schedules ContentSchedule[]
+
+  @@unique([platformId, channelType])
+  @@map("social_accounts")
+}
+
+model ContentItem {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId   String   @db.Uuid
+  title        String?  @db.VarChar(200)
+  caption      String
+  mediaType    String   @default("image") @db.VarChar(20)
+  mediaUrls    String[]
+  aiPromptUsed String?
+  status       String   @default("draft") @db.VarChar(20)
+  createdBy    String?  @db.VarChar(150)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  platform  Platform          @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  schedules ContentSchedule[]
+
+  @@map("content_items")
+}
+
+model ContentSchedule {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contentId       String    @db.Uuid
+  socialAccountId String    @db.Uuid
+  scheduledAt     DateTime  @db.Timestamptz(6)
+  status          String    @default("pending") @db.VarChar(20)
+  postedAt        DateTime? @db.Timestamptz(6)
+  externalPostId  String?   @db.VarChar(150)
+  errorMessage    String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  content       ContentItem         @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount       @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  publishLogs   ContentPublishLog[]
+
+  @@map("content_schedules")
+}
+
+model ContentPublishLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scheduleId      String   @db.Uuid
+  attemptNumber   Int      @default(1)
+  status          String   @db.VarChar(20)
+  responsePayload Json?
+  attemptedAt     DateTime @default(now()) @db.Timestamptz(6)
+
+  schedule ContentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@map("content_publish_logs")
+}
+
+// ============================================================
+// Modul 4 — Automation Engine & Reporting
+// ============================================================
+
+model AutomationPipeline {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String    @db.VarChar(150)
+  description   String?
+  pipelineType  String    @db.VarChar(50)
+  n8nWorkflowId String?   @db.VarChar(100)
+  platformId    String?   @db.Uuid
+  status        String    @default("active") @db.VarChar(20)
+  config        Json?
+  lastRunAt     DateTime? @db.Timestamptz(6)
+  lastRunStatus String?   @db.VarChar(20)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  platform Platform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+
+  @@map("automation_pipelines")
+}
+
+model ReportSchedule {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId   String?   @db.Uuid
+  reportType   String    @db.VarChar(50)
+  cronExpr     String    @db.VarChar(50)
+  recipients   String[]
+  outputFormat String    @default("json") @db.VarChar(20)
+  isActive     Boolean   @default(true)
+  lastSentAt   DateTime? @db.Timestamptz(6)
+  nextRunAt    DateTime? @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  platform Platform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+
+  @@map("report_schedules")
+}
+
+model AutomationAlert {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId  String?   @db.Uuid
+  alertType   String    @db.VarChar(50)
+  severity    String    @default("info") @db.VarChar(20)
+  title       String    @db.VarChar(200)
+  message     String
+  metadata    Json?
+  status      String    @default("pending") @db.VarChar(20)
+  sentAt      DateTime? @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+
+  platform Platform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+
+  @@map("automation_alerts")
+}
+
+model ReportLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceType   String   @db.VarChar(20)
+  sourceId     String   @db.Uuid
+  platformId   String?  @db.Uuid
+  reportType   String   @db.VarChar(50)
+  status       String   @db.VarChar(20)
+  payload      Json?
+  errorDetail  String?
+  generatedAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  platform Platform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+
+  @@map("report_logs")
+}
+
+// ============================================================
+// Modul 5 — Virtual Office (Fase 2)
+// ============================================================
+
+model Executive {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roleCode         String   @unique @db.VarChar(20)
+  displayName      String   @db.VarChar(50)
+  scopeDescription String
+  systemPrompt     String
+  aiModel          String   @default("claude-sonnet-4-6") @db.VarChar(50)
+  status           String   @default("not_ready") @db.VarChar(20)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  dataSources ExecutiveDataSource[]
+  messages    ExecutiveMessage[]
+
+  @@map("executives")
+}
+
+model ExecutiveDataSource {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  executiveId String   @db.Uuid
+  platformId  String?  @db.Uuid
+  dataDomain  String   @db.VarChar(30)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  executive Executive @relation(fields: [executiveId], references: [id], onDelete: Cascade)
+  platform  Platform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+
+  @@unique([executiveId, dataDomain])
+  @@map("executive_data_sources")
+}
+
+model ExecutiveSession {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mode                    String    @default("chat") @db.VarChar(20)
+  title                   String?   @db.VarChar(200)
+  participantExecutiveIds String[]  @db.Uuid
+  status                  String    @default("active") @db.VarChar(20)
+  scheduledAt             DateTime? @db.Timestamptz(6)
+  startedAt               DateTime? @db.Timestamptz(6)
+  endedAt                 DateTime? @db.Timestamptz(6)
+  summary                 String?
+  createdAt               DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  messages ExecutiveMessage[]
+
+  @@map("executive_sessions")
+}
+
+model ExecutiveMessage {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId           String   @db.Uuid
+  senderType          String   @db.VarChar(20)
+  speakerExecutiveId  String?  @db.Uuid
+  messageText         String
+  contextData         Json?
+  createdAt           DateTime @default(now()) @db.Timestamptz(6)
+
+  session   ExecutiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  executive Executive?       @relation(fields: [speakerExecutiveId], references: [id], onDelete: SetNull)
+
+  @@map("executive_messages")
+}
+
+model FinancialSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  periodStart  DateTime @db.Date
+  periodEnd    DateTime @db.Date
+  revenueTotal Decimal? @db.Decimal(14, 2)
+  expenseTotal Decimal? @db.Decimal(14, 2)
+  notes        String?
+  source       String   @default("manual") @db.VarChar(20)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("financial_snapshots")
+}
