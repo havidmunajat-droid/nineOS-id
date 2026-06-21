@@ -1,6 +1,6 @@
 # NineOS — Status Progress & Checklist "Tinggal Colok"
 
-> Terakhir diupdate: 20 Juni 2026
+> Terakhir diupdate: 21 Juni 2026
 
 ---
 
@@ -11,7 +11,26 @@
 | Backend (NestJS + PostgreSQL) | ✅ Selesai — 24 tabel, 54+ endpoint |
 | Frontend (Next.js 15) | ✅ Selesai — 5 halaman, dark theme Figma |
 | AI Virtual Office | ✅ Aktif — Gemini Flash 2.5 connected |
-| Deploy ke Railway | ⏳ Menunggu upgrade plan |
+| **Integrasi Krama (KPI live)** | ✅ Selesai — NineOS baca KPI Krama real-time |
+| Deploy config (Railway) | ✅ `railway.json` siap — TAPI Railway tak lagi free (min $5/bln) |
+| Deploy aktual | ⏳ Belum — pertimbangkan Render/Fly.io/Koyeb (gratis) |
+
+---
+
+## ✅ Yang Selesai Sesi Ini (21 Juni 2026)
+
+### Integrasi NineOS ↔ Krama
+- `PlatformKpiService` — NineOS fetch KPI live dari Krama (`GET /nineos/kpi`)
+- Endpoint baru: `GET /platforms/:slug/kpi` dan `GET /platforms/kpi/all`
+- Frontend: section "Krama Platform — KPI Hari Ini" (5 kartu: order, revenue, driver online, merchant buka, produk)
+- Auth via header `X-NineOS-Key`; key terenkripsi dengan fallback plaintext (dev/seed)
+- Krama terdaftar di NineOS sebagai platform `ready` + `PlatformConnection`
+
+### Deploy Prep
+- `railway.json` ditambahkan (startCommand: `prisma migrate deploy && npm run start:prod`)
+- Fix `start:prod` → `dist/src/main` (sebelumnya salah `dist/main`)
+- `build` kini jalankan `prisma generate`; `dotenv` dipindah ke dependencies
+- ⚠️ Railway sudah TIDAK punya free tier. Alternatif gratis: **Render** (rekomendasi), Fly.io, Koyeb
 
 ---
 
@@ -79,11 +98,15 @@ AI sudah berjalan dengan Gemini Flash 2.5. Yang dibutuhkan:
 
 ## Infrastruktur — Checklist Deploy
 
-### Railway (Recommended untuk MVP)
+### Deploy Backend (Railway / Render / Fly.io)
 
-- [ ] Upgrade Railway plan (perlu untuk always-on)
-- [ ] Add PostgreSQL service di Railway (atau tetap pakai Neon)
-- [ ] Set semua env vars di Railway dashboard:
+> `railway.json` sudah disiapkan. Railway TIDAK lagi punya free tier (min $5/bln).
+> Untuk gratis pakai **Render** (spin-down 15 mnt), Fly.io, atau Koyeb.
+
+- [ ] Pilih platform (Railway berbayar / Render gratis)
+- [ ] Root directory: `nineos-backend`
+- [ ] DB tetap pakai Neon PostgreSQL (sudah ada)
+- [ ] Set semua env vars di dashboard:
 
 ```
 DATABASE_URL=postgresql://...
@@ -92,12 +115,14 @@ ENCRYPTION_KEY=...  (32 bytes random hex)
 GEMINI_API_KEY=...
 AI_PROVIDER=gemini
 NODE_ENV=production
+KRAMA_API_URL=https://<url-krama>/api/v1
+KRAMA_NINEOS_KEY=key_untuk_nineOS_baca_kpi
 ```
 
-- [ ] Set build command: `npm run build`
-- [ ] Set start command: `node dist/src/main.js`
+- [ ] Build command: `npm run build` (sudah include `prisma generate`)
+- [ ] Start command: `npm run start:prod` (sudah benar: `dist/src/main`)
 - [ ] Deploy frontend ke Vercel: `cd nineos-frontend && vercel --prod`
-- [ ] Set `NEXT_PUBLIC_API_URL` di Vercel ke URL Railway
+- [ ] Set `NEXT_PUBLIC_API_URL` di Vercel ke URL backend
 
 ---
 
@@ -114,6 +139,7 @@ Railway (NestJS Backend :3000)
       │
       ├── Neon PostgreSQL (24 tabel)
       ├── Gemini Flash 2.5 (Virtual Office AI)
+      ├── Krama Backend :3001 (KPI live) ← ✅ tersambung
       ├── n8n (Automation pipelines) ← belum setup
       └── Meta API (WhatsApp + Instagram) ← token belum colok
 ```
@@ -132,16 +158,16 @@ Railway (NestJS Backend :3000)
 
 ---
 
-## Next Steps (Urutan Prioritas)
+## Next Steps (Urutan Prioritas) — BELUM DIKERJAKAN
 
 1. **Revoke & regenerate Gemini API key** — key lama terekspos di chat
-2. **Upgrade Railway** → deploy backend
-3. **Deploy frontend ke Vercel** → set env ke Railway URL
+2. **Deploy backend** → pilih Render (gratis) atau Railway (berbayar), pakai `railway.json`
+3. **Deploy frontend ke Vercel** → set `NEXT_PUBLIC_API_URL` ke URL backend
 4. **Test end-to-end** Virtual Office dari browser
 5. **Colok WhatsApp token** → HelpDesk aktif
 6. **Colok Instagram token** → Social Media aktif
-7. **Setup n8n** → Automation pipelines aktif
-8. **Colok URL + token Matcha/NotaBe** → data real masuk
+7. **Setup n8n** → Automation pipelines aktif (dipakai NineOS HelpDesk & Krama WHATSAPP_PUSH)
+8. **Colok URL + token Matcha/NotaBe** → data real masuk (Krama sudah live)
 
 ---
 
