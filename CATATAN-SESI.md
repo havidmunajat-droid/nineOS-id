@@ -99,6 +99,20 @@ flutter run
 ## 📍 Dokumentasi Lengkap
 - **NineOS**: `nineOS-id/NineOS-Status-Progress.md`
 - **Krama**: `krama-platform/docs/PROGRESS.md`
+- **Kontrak colok platform baru**: `nineOS-id/NineOS-Integration-Contract.md`
+
+## 🔌 Mau Colok Platform Baru ke NineOS? (Matcha, NotaBe, Nine Studio)
+Platform lain cukup sediakan di backend mereka:
+1. `GET /nineos/health` → `{ status, platform, timestamp }`
+2. `GET /nineos/kpi?period=today|week|month` → JSON metrik (ada blok `overview`)
+3. Auth header `X-NineOS-Key` (validasi dari tabel service-account)
+
+Lalu kasih ke kita: **BASE_URL + service key + slug**. Sisanya NineOS yang atur.
+Detail + contoh kode nyata (tiru pola Krama) ada di `NineOS-Integration-Contract.md`.
+
+> Yang dikirim ke Claude pengembang platform:
+> *"Buatkan module integrasi NineOS: `GET /nineos/health` & `GET /nineos/kpi?period=`,
+> dijaga header `X-NineOS-Key`. Ikuti `NineOS-Integration-Contract.md`, contoh: Krama."*
 
 ---
 
