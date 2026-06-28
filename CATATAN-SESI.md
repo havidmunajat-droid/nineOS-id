@@ -73,6 +73,17 @@
 12. **Setup n8n** → Automation pipelines aktif (dipakai NineOS HelpDesk & Krama WHATSAPP_PUSH)
 13. **Colok URL + token Matcha & NotaBe** → data platform lain masuk
 
+### 🟢 Update Sesi 28 Juni 2026 — Content Studio NineOS SELESAI
+Alur bikin konten sudah jalan end-to-end (ditest via UI):
+**Brief → caption AI (Gemini) → generate gambar/video → preview → posting realtime**
+- Keputusan arsitektur: AI dipanggil langsung dari NineOS, n8n cuma "tangan" (lihat `NineOS-Architecture-Decision.md`)
+- `MediaGenerationService` provider-switch: google(Veo)/bytedance/mock — sekarang pakai **mock** (placeholder)
+- **Untuk Veo asli besok, perlu 3 colokan:**
+  1. Billing/akses Veo/Imagen (atau Bytedance via BytePlus)
+  2. **Storage** (S3/Cloudinary) — host hasil generate jadi URL publik
+  3. API channel nyata di `publishNow` (sekarang masih simulasi)
+- Cara coba: buka NineOS → menu **Social Media (Content Studio)** → tombol "Buat Konten AI"
+
 ---
 
 ## 🔑 Akun Demo (Krama)
@@ -88,6 +99,10 @@ npm run start:dev
 # NineOS backend (port 3000)
 cd C:\Users\ulwan\nineOS-id\nineos-backend
 npm run start:dev
+
+# NineOS frontend (port bebas, mis. 3100 biar tak bentrok backend)
+cd C:\Users\ulwan\nineOS-id\nineos-frontend
+npm run dev -- -p 3100
 
 # Flutter app ke HP (USB debugging ON, satu WiFi)
 cd C:\Users\ulwan\krama-platform\apps\krama_app
