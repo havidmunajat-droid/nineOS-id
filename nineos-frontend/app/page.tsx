@@ -7,11 +7,11 @@ interface Platform { id: string; slug: string; name: string; readiness_status: s
 interface Alert { id: string; title: string; severity: string; status: string; created_at: string; }
 interface KramaKpi {
   period: string;
-  orders: { total: number; pending: number; completed: number; revenue: number };
-  drivers: { total: number; online: number };
-  merchants: { total: number; open: number };
-  products: { total: number };
-  walletBalance: number;
+  overview?: { gmv: number; revenue: number; active_users: number; new_registrations: number };
+  orders?: { total: number; completed: number; cancelled: number; in_progress: number; avg_order_value: number };
+  drivers?: { total_registered: number; online_now: number; active_period: number };
+  merchants?: { total_registered: number; open_now: number; new_period: number };
+  sayur_ai?: { orders: number; ai_sessions: number };
 }
 
 const readinessColor: Record<string, string> = {
@@ -125,11 +125,11 @@ export default function DashboardPage() {
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {[
-          { label: 'Total Order', value: kramaLoading ? null : kramaKpi?.orders.total ?? '—', sub: `${kramaKpi?.orders.completed ?? 0} selesai` },
-          { label: 'Revenue', value: kramaLoading ? null : kramaKpi ? rupiah(kramaKpi.orders.revenue) : '—', sub: 'hari ini' },
-          { label: 'Driver Online', value: kramaLoading ? null : kramaKpi ? `${kramaKpi.drivers.online}/${kramaKpi.drivers.total}` : '—', sub: 'aktif bertugas' },
-          { label: 'Merchant Buka', value: kramaLoading ? null : kramaKpi ? `${kramaKpi.merchants.open}/${kramaKpi.merchants.total}` : '—', sub: 'sedang buka' },
-          { label: 'Produk', value: kramaLoading ? null : kramaKpi?.products.total ?? '—', sub: 'SKU terdaftar' },
+          { label: 'Total Order', value: kramaLoading ? null : kramaKpi?.orders?.total ?? '—', sub: `${kramaKpi?.orders?.completed ?? 0} selesai` },
+          { label: 'Revenue', value: kramaLoading ? null : kramaKpi?.overview ? rupiah(kramaKpi.overview.revenue) : '—', sub: 'hari ini' },
+          { label: 'Driver Online', value: kramaLoading ? null : kramaKpi?.drivers ? `${kramaKpi.drivers.online_now}/${kramaKpi.drivers.total_registered}` : '—', sub: 'aktif bertugas' },
+          { label: 'Merchant Buka', value: kramaLoading ? null : kramaKpi?.merchants ? `${kramaKpi.merchants.open_now}/${kramaKpi.merchants.total_registered}` : '—', sub: 'sedang buka' },
+          { label: 'GMV', value: kramaLoading ? null : kramaKpi?.overview ? rupiah(kramaKpi.overview.gmv) : '—', sub: 'nilai transaksi' },
         ].map(s => (
           <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
             <p className="text-[12px] text-[var(--text-muted)]">{s.label}</p>

@@ -16,6 +16,9 @@ async function bootstrap() {
     }),
   );
 
+  // Izinkan akses dari frontend (Next.js dev / Vercel)
+  app.enableCors();
+
   // Base path /api/v1
   app.setGlobalPrefix('api/v1');
 
