@@ -61,6 +61,12 @@ export class ScheduleContentDto {
   media_urls?: string[];
 }
 
+export class PublishNowDto {
+  @ApiProperty({ example: ['instagram', 'facebook'], description: 'Channel tujuan posting realtime' })
+  @IsArray() @IsString({ each: true })
+  channels: string[];
+}
+
 export class PublishResultDto {
   @ApiProperty({ example: 'posted', enum: ['posted', 'failed'] })
   @IsIn(['posted', 'failed'])

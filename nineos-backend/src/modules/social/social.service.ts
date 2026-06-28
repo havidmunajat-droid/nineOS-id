@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EncryptionService } from '../../common/crypto/encryption.service';
+import { AIService } from '../../common/ai/ai.service';
+import { MediaGenerationService } from '../../common/media/media-generation.service';
 import {
   ConnectAccountDto, CreateContentDto, GenerateCaptionDto,
   PublishResultDto, ScheduleContentDto, UpdateContentDto,
@@ -11,6 +13,8 @@ export class SocialService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
+    private readonly ai: AIService,
+    private readonly media: MediaGenerationService,
   ) {}
 
   // ── Social Accounts ───────────────────────────────────────────
@@ -118,21 +122,144 @@ export class SocialService {
     return { deleted: true, id };
   }
 
+  /**
+   * Generate draft konten via AI (ADR-001: AI dipanggil langsung dari NineOS).
+   * Menghasilkan DUA hal:
+   *  - caption (teks) untuk sosmed
+   *  - media_prompt (prompt visual) untuk dipakai generate gambar/video
+   */
   async generateCaption(slug: string, dto: GenerateCaptionDto) {
-    await this.requirePlatform(slug);
-    // Tahap 5: integrasi AI nyata. Sekarang kembalikan draft placeholder.
-    const caption = `[AI draft] ${dto.prompt.slice(0, 80)}... (integrasi AI aktif di Tahap 5)`;
+    const platform = await this.requirePlatform(slug);
+
+    const system = [
+      'Kamu copywriter sosmed profesional untuk brand Indonesia.',
+      'Dari brief user, hasilkan JSON valid TANPA teks lain dengan bentuk:',
+      '{ "caption": string, "hashtags": string[], "media_prompt": string }',
+      '- caption: menarik, sesuai tone brief, ada CTA, pakai emoji secukupnya.',
+      `- media_prompt: deskripsi visual detail dalam Bahasa Inggris untuk generator ${dto.media_type} (gambar/video), siap dipakai AI image/video.`,
+      '- hashtags: 3-6 hashtag relevan tanpa tanda #.',
+    ].join('\n');
+
+    let caption = '';
+    let mediaPrompt = dto.prompt;
+    let hashtags: string[] = [];
+    try {
+      const raw = await this.ai.chat(system, [], dto.prompt);
+      const parsed = this.parseJson(raw);
+      caption = (parsed.caption as string) ?? raw;
+      mediaPrompt = (parsed.media_prompt as string) ?? dto.prompt;
+      hashtags = Array.isArray(parsed.hashtags) ? (parsed.hashtags as string[]) : [];
+    } catch {
+      // AI tidak tersedia / gagal parse → simpan brief mentah sebagai caption
+      caption = dto.prompt;
+    }
+
+    const fullCaption = hashtags.length
+      ? `${caption}\n\n${hashtags.map((h) => `#${h.replace(/^#/, '')}`).join(' ')}`
+      : caption;
+
     const item = await this.prisma.contentItem.create({
       data: {
-        platformId: (await this.prisma.platform.findUnique({ where: { slug } }))!.id,
-        caption,
+        platformId: platform.id,
+        caption: fullCaption,
         mediaType: dto.media_type,
-        aiPromptUsed: dto.prompt,
+        aiPromptUsed: mediaPrompt,
         status: 'draft',
         mediaUrls: [],
       },
     });
-    return { content_id: item.id, caption, status: 'draft' };
+
+    return {
+      content_id: item.id,
+      caption: fullCaption,
+      media_prompt: mediaPrompt,
+      hashtags,
+      provider: this.ai.activeProvider,
+      status: 'draft',
+    };
+  }
+
+  /**
+   * Generate media (gambar/video) untuk sebuah content item.
+   * Pakai media_prompt yang tersimpan (aiPromptUsed) atau override dari body.
+   */
+  async generateMedia(slug: string, contentId: string, overridePrompt?: string) {
+    const platform = await this.requirePlatform(slug);
+    const content = await this.prisma.contentItem.findUnique({ where: { id: contentId } });
+    if (!content || content.platformId !== platform.id)
+      throw new NotFoundException(`Content '${contentId}' tidak ditemukan`);
+
+    const prompt = overridePrompt ?? content.aiPromptUsed ?? content.caption;
+
+    const result =
+      content.mediaType === 'video'
+        ? await this.media.generateVideo(prompt)
+        : await this.media.generateImage(prompt);
+
+    if (result.status === 'failed')
+      throw new BadRequestException(`Generate media gagal: ${result.error ?? 'unknown'}`);
+
+    // Video bisa async (processing) → simpan status 'generating', UI polling.
+    if (result.status === 'processing') {
+      await this.prisma.contentItem.update({
+        where: { id: contentId },
+        data: { status: 'generating' },
+      });
+      return { content_id: contentId, status: 'generating', job_id: result.jobId, provider: result.provider };
+    }
+
+    const item = await this.prisma.contentItem.update({
+      where: { id: contentId },
+      data: { mediaUrls: result.mediaUrl ? [result.mediaUrl] : [], status: 'ready' },
+    });
+
+    return {
+      content_id: contentId,
+      status: 'ready',
+      media_urls: item.mediaUrls,
+      provider: result.provider,
+    };
+  }
+
+  /**
+   * Posting REALTIME ke channel terpilih (tanpa jadwal) — ADR-001.
+   * Membuat schedule scheduledAt=now lalu menandai langsung; titik colok
+   * posting channel nyata (Meta/WA API) ada di sini.
+   */
+  async publishNow(slug: string, contentId: string, channels: string[]) {
+    const platform = await this.requirePlatform(slug);
+    const content = await this.prisma.contentItem.findUnique({ where: { id: contentId } });
+    if (!content || content.platformId !== platform.id)
+      throw new NotFoundException(`Content '${contentId}' tidak ditemukan`);
+    if (!content.mediaUrls.length)
+      throw new BadRequestException('Media belum digenerate. Generate media dulu sebelum posting.');
+
+    const results: Array<{ channel: string; status: string; external_post_id?: string }> = [];
+    for (const channel of channels) {
+      const account = await this.prisma.socialAccount.findUnique({
+        where: { platformId_channelType: { platformId: platform.id, channelType: channel } },
+      });
+      if (!account) throw new BadRequestException(`Akun ${channel} belum terhubung untuk ${slug}`);
+
+      const sched = await this.prisma.contentSchedule.create({
+        data: { contentId, socialAccountId: account.id, scheduledAt: new Date(), status: 'pending' },
+      });
+
+      // TODO(channel): di sini panggil API channel nyata (Meta Graph / WA) memakai
+      // account.accessTokenEncrypted. Untuk sekarang tandai 'posted' (simulasi).
+      const externalId = `sim_${sched.id.slice(0, 8)}`;
+      await this.prisma.contentSchedule.update({
+        where: { id: sched.id },
+        data: { status: 'posted', postedAt: new Date(), externalPostId: externalId },
+      });
+      await this.prisma.contentPublishLog.create({
+        data: { scheduleId: sched.id, status: 'posted', responsePayload: { realtime: true, channel } },
+      });
+      results.push({ channel, status: 'posted', external_post_id: externalId });
+    }
+
+    await this.prisma.contentItem.update({ where: { id: contentId }, data: { status: 'published' } });
+    return { content_id: contentId, mode: 'realtime', results };
   }
 
   // ── Schedules ─────────────────────────────────────────────────
@@ -235,6 +362,15 @@ export class SocialService {
     const p = await this.prisma.platform.findUnique({ where: { slug } });
     if (!p) throw new NotFoundException(`Platform '${slug}' tidak ditemukan`);
     return p;
+  }
+
+  /** Parse JSON dari output AI yang kadang dibungkus ```json ... ```. */
+  private parseJson(raw: string): Record<string, unknown> {
+    const cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start === -1 || end === -1) throw new Error('No JSON found');
+    return JSON.parse(cleaned.slice(start, end + 1));
   }
 
   private formatContent(item: {

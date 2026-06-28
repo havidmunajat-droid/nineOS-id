@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
+import ContentStudioModal from '@/components/ContentStudioModal';
 import api from '@/lib/api';
 
 interface Content {
-  id: string; platform_slug: string; content_type: string; caption: string;
+  id: string; platform_slug: string; media_type: string; caption: string;
   status: string; scheduled_at?: string; published_at?: string; created_at: string;
 }
 
@@ -32,10 +33,12 @@ export default function SocialPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('Semua');
   const [platformFilter, setPlatformFilter] = useState('all');
+  const [showStudio, setShowStudio] = useState(false);
 
-  useEffect(() => {
+  const loadContent = () => {
+    setLoading(true);
     Promise.all(PLATFORMS.map(p =>
-      api.get(`/platforms/${p.slug}/social-media/content`)
+      api.get(`/platforms/${p.slug}/content`)
         .then(r => (r.data.data ?? []).map((c: Content) => ({ ...c, platform_slug: p.slug })))
         .catch(() => [])
     )).then(results => {
@@ -44,7 +47,9 @@ export default function SocialPage() {
       );
       setContents(all);
     }).finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadContent(); }, []);
 
   const filtered = contents.filter(c => {
     if (platformFilter !== 'all' && c.platform_slug !== platformFilter) return false;
@@ -60,10 +65,18 @@ export default function SocialPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-[1116px]">
-      <TopBar title="Social Media" subtitle="Kelola konten multi-platform" />
+      <TopBar title="Content Studio" subtitle="Generate konten AI & posting realtime" />
+
+      {showStudio && (
+        <ContentStudioModal
+          platforms={PLATFORMS}
+          onClose={() => setShowStudio(false)}
+          onPublished={loadContent}
+        />
+      )}
 
       {/* Tabs + filter row */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-1">
           {TABS.map(t => (
             <button
@@ -80,14 +93,22 @@ export default function SocialPage() {
           ))}
         </div>
 
-        <select
-          value={platformFilter}
-          onChange={e => setPlatformFilter(e.target.value)}
-          className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none"
-        >
-          <option value="all">Semua Platform</option>
-          {PLATFORMS.map(p => <option key={p.slug} value={p.slug}>{p.label}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={platformFilter}
+            onChange={e => setPlatformFilter(e.target.value)}
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none"
+          >
+            <option value="all">Semua Platform</option>
+            {PLATFORMS.map(p => <option key={p.slug} value={p.slug}>{p.label}</option>)}
+          </select>
+          <button
+            onClick={() => setShowStudio(true)}
+            className="whitespace-nowrap rounded-lg bg-[var(--brand-red)] px-4 py-2 text-[13px] font-semibold text-white"
+          >
+            ✨ Buat Konten AI
+          </button>
+        </div>
       </div>
 
       {/* Content list */}
@@ -115,7 +136,7 @@ export default function SocialPage() {
             >
               <p className="text-[13px] text-[var(--text-primary)] truncate pr-4">{c.caption}</p>
               <p className="text-[13px] text-[var(--text-muted)] capitalize">{c.platform_slug}</p>
-              <p className="text-[13px] text-[var(--text-muted)] capitalize">{c.content_type}</p>
+              <p className="text-[13px] text-[var(--text-muted)] capitalize">{c.media_type}</p>
               <p className="text-[13px] text-[var(--text-muted)]">{fmt(c.published_at ?? c.scheduled_at)}</p>
               <span className={`inline-flex w-fit rounded-full px-2.5 py-0.5 text-[11px] font-medium ${statusColors[c.status] ?? 'text-[var(--text-muted)]'}`}>
                 {c.status}

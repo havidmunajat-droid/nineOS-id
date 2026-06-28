@@ -23,6 +23,12 @@ export const getKnowledgeBase = (slug: string) => api.get(`/platforms/${slug}/he
 export const getContent = (slug: string, status?: string) =>
   api.get(`/platforms/${slug}/content`, { params: status ? { status } : {} }).then(r => r.data);
 export const getSocialAccounts = (slug: string) => api.get(`/platforms/${slug}/social/accounts`).then(r => r.data);
+export const generateContent = (slug: string, prompt: string, media_type: string) =>
+  api.post(`/platforms/${slug}/content/generate`, { prompt, media_type }).then(r => r.data);
+export const generateMedia = (slug: string, id: string, prompt?: string) =>
+  api.post(`/platforms/${slug}/content/${id}/generate-media`, prompt ? { prompt } : {}).then(r => r.data);
+export const publishNow = (slug: string, id: string, channels: string[]) =>
+  api.post(`/platforms/${slug}/content/${id}/publish-now`, { channels }).then(r => r.data);
 
 // ── Automation ─────────────────────────────────────────────────
 export const getPipelines = () => api.get('/automation/pipelines').then(r => r.data);

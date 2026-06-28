@@ -4,7 +4,7 @@ import { GatewayAuthGuard } from '../../common/guards/gateway-auth.guard';
 import { SocialService } from './social.service';
 import {
   ConnectAccountDto, CreateContentDto, GenerateCaptionDto,
-  PublishResultDto, ScheduleContentDto, UpdateContentDto,
+  PublishNowDto, PublishResultDto, ScheduleContentDto, UpdateContentDto,
 } from './dto/social.dto';
 
 @ApiTags('Social Media')
@@ -55,10 +55,28 @@ export class SocialController {
   }
 
   @Post('platforms/:slug/content/generate')
-  @ApiOperation({ summary: 'Generate draft caption via AI dari prompt singkat' })
+  @ApiOperation({ summary: 'Generate draft caption + media_prompt via AI dari brief singkat' })
   @ApiParam({ name: 'slug', example: 'matcha' })
   generateCaption(@Param('slug') slug: string, @Body() dto: GenerateCaptionDto) {
     return this.svc.generateCaption(slug, dto);
+  }
+
+  @Post('platforms/:slug/content/:id/generate-media')
+  @ApiOperation({ summary: 'Generate gambar/video untuk content (Veo/Imagen, ADR-002)' })
+  @ApiParam({ name: 'slug', example: 'matcha' })
+  generateMedia(
+    @Param('slug') slug: string,
+    @Param('id') id: string,
+    @Body() body: { prompt?: string },
+  ) {
+    return this.svc.generateMedia(slug, id, body?.prompt);
+  }
+
+  @Post('platforms/:slug/content/:id/publish-now')
+  @ApiOperation({ summary: 'Posting REALTIME ke channel terpilih (tanpa jadwal)' })
+  @ApiParam({ name: 'slug', example: 'matcha' })
+  publishNow(@Param('slug') slug: string, @Param('id') id: string, @Body() dto: PublishNowDto) {
+    return this.svc.publishNow(slug, id, dto.channels);
   }
 
   @Put('platforms/:slug/content/:id')
