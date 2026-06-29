@@ -27,6 +27,8 @@ export const generateContent = (slug: string, prompt: string, media_type: string
   api.post(`/platforms/${slug}/content/generate`, { prompt, media_type }).then(r => r.data);
 export const generateMedia = (slug: string, id: string, prompt?: string) =>
   api.post(`/platforms/${slug}/content/${id}/generate-media`, prompt ? { prompt } : {}).then(r => r.data);
+export const mediaStatus = (slug: string, id: string, job_id: string) =>
+  api.post(`/platforms/${slug}/content/${id}/media-status`, { job_id }).then(r => r.data);
 export const publishNow = (slug: string, id: string, channels: string[]) =>
   api.post(`/platforms/${slug}/content/${id}/publish-now`, { channels }).then(r => r.data);
 

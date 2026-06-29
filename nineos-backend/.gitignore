@@ -3,3 +3,6 @@ node_modules
 .env
 
 /generated/prisma
+
+# Media hasil generate (jangan di-commit)
+public/generated/

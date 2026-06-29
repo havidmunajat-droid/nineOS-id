@@ -1,11 +1,16 @@
 import 'dotenv/config';
+import { join } from 'path';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Sajikan media hasil generate secara statis di /static/... (di luar prefix /api/v1)
+  app.useStaticAssets(join(process.cwd(), 'public'), { prefix: '/static/' });
 
   // Global validation via class-validator
   app.useGlobalPipes(

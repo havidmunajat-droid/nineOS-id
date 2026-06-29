@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
+import { StorageService } from '../storage/storage.service';
 
 export interface MediaGenResult {
   status: 'completed' | 'processing' | 'failed';
@@ -8,6 +9,23 @@ export interface MediaGenResult {
   jobId?: string;
   provider: string;
   error?: string;
+}
+
+const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta';
+// Model bisa di-override via env (default: varian fast paling hemat)
+const IMAGEN_MODEL = process.env.IMAGEN_MODEL ?? 'imagen-4.0-fast-generate-001';
+const VEO_MODEL = process.env.VEO_MODEL ?? 'veo-3.0-fast-generate-001';
+
+interface ImagenResponse {
+  predictions?: { bytesBase64Encoded: string; mimeType?: string }[];
+  error?: { message?: string };
+}
+
+interface GeminiOperation {
+  name?: string;
+  done?: boolean;
+  response?: unknown;
+  error?: { message?: string };
 }
 
 /**
@@ -24,6 +42,8 @@ export interface MediaGenResult {
 @Injectable()
 export class MediaGenerationService {
   private readonly logger = new Logger(MediaGenerationService.name);
+
+  constructor(private readonly storage: StorageService) {}
 
   get activeProvider(): string {
     const p = (process.env.MEDIA_PROVIDER ?? '').toLowerCase();
@@ -65,12 +85,28 @@ export class MediaGenerationService {
 
   /**
    * Cek status job async (untuk video Veo yang long-running).
-   * Mock & gambar biasanya langsung 'completed', jadi ini untuk provider nyata.
+   * jobId = nama operation Google (mis. "models/veo-.../operations/abc").
    */
   async getStatus(jobId: string): Promise<MediaGenResult> {
     const provider = this.activeProvider;
-    // TODO(google): poll operations.get(jobId) → ambil video URI saat selesai
-    return { status: 'processing', mediaType: 'video', jobId, provider };
+    if (provider !== 'google') {
+      return { status: 'completed', mediaType: 'video', jobId, provider };
+    }
+    try {
+      const key = process.env.GEMINI_API_KEY!;
+      const res = await fetch(`${GEMINI_API}/${jobId}?key=${key}`);
+      const data = (await res.json()) as GeminiOperation;
+      if (!data.done) return { status: 'processing', mediaType: 'video', jobId, provider };
+
+      const uri = this.extractVeoUri(data);
+      if (!uri) return { status: 'failed', mediaType: 'video', jobId, provider, error: 'Video URI tidak ditemukan di response' };
+
+      // File Veo perlu API key untuk diunduh → simpan ke storage kita
+      const mediaUrl = await this.storage.saveFromUrl(`${uri}&key=${key}`, 'mp4');
+      return { status: 'completed', mediaType: 'video', mediaUrl, provider };
+    } catch (err) {
+      return { status: 'failed', mediaType: 'video', jobId, provider, error: err instanceof Error ? err.message : 'unknown' };
+    }
   }
 
   // ── Mock provider (default, gratis) ─────────────────────────────
@@ -84,16 +120,57 @@ export class MediaGenerationService {
     return { status: 'completed', mediaType, mediaUrl, provider: 'mock' };
   }
 
-  // ── Google Veo/Imagen (colok berikutnya) ────────────────────────
-  // Imagen: synchronous (base64) → perlu upload ke storage → URL publik.
+  // ── Google Veo/Imagen ───────────────────────────────────────────
+  // Imagen: synchronous (base64) → simpan ke storage → URL publik.
   // Veo: long-running operation → return { processing, jobId }, poll via getStatus().
+  // Catatan: generate media butuh BILLING Google aktif (ai.dev/projects).
   private async generateGoogle(prompt: string, mediaType: 'image' | 'video'): Promise<MediaGenResult> {
-    // TODO: implementasi nyata butuh:
-    //   1. Akses & billing Veo/Imagen aktif
-    //   2. Storage (S3/Cloudinary) untuk host hasil → URL publik
-    // Selama belum siap, fallback ke mock supaya alur tetap jalan.
-    this.logger.warn('Provider google belum diimplementasi penuh (butuh billing + storage) — fallback mock');
-    return this.generateMock(prompt, mediaType);
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) return { status: 'failed', mediaType, provider: 'google', error: 'GEMINI_API_KEY kosong' };
+
+    if (mediaType === 'image') {
+      const res = await fetch(`${GEMINI_API}/models/${IMAGEN_MODEL}:predict?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instances: [{ prompt }],
+          parameters: { sampleCount: 1, aspectRatio: '1:1' },
+        }),
+      });
+      const data = (await res.json()) as ImagenResponse;
+      if (!res.ok || !data.predictions?.length) {
+        const msg = data.error?.message ?? `HTTP ${res.status}`;
+        return { status: 'failed', mediaType, provider: 'google', error: msg };
+      }
+      const b64 = data.predictions[0].bytesBase64Encoded;
+      const mediaUrl = await this.storage.saveBase64(b64, 'png');
+      return { status: 'completed', mediaType, mediaUrl, provider: 'google' };
+    }
+
+    // Video → Veo (long-running)
+    const res = await fetch(`${GEMINI_API}/models/${VEO_MODEL}:predictLongRunning?key=${key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instances: [{ prompt }] }),
+    });
+    const data = (await res.json()) as GeminiOperation;
+    if (!res.ok || !data.name) {
+      const msg = data.error?.message ?? `HTTP ${res.status}`;
+      return { status: 'failed', mediaType, provider: 'google', error: msg };
+    }
+    // Async: kembalikan operation name sebagai jobId; UI/SocialService poll getStatus()
+    return { status: 'processing', mediaType, jobId: data.name, provider: 'google' };
+  }
+
+  /** Ambil URI video dari response operation Veo (struktur bisa beragam antar versi). */
+  private extractVeoUri(op: GeminiOperation): string | null {
+    const resp = op.response as Record<string, unknown> | undefined;
+    if (!resp) return null;
+    // Bentuk umum: response.generateVideoResponse.generatedSamples[0].video.uri
+    const gv = resp['generateVideoResponse'] as Record<string, unknown> | undefined;
+    const samples = (gv?.['generatedSamples'] ?? gv?.['generatedVideos']) as Array<Record<string, unknown>> | undefined;
+    const video = samples?.[0]?.['video'] as Record<string, unknown> | undefined;
+    return (video?.['uri'] as string) ?? null;
   }
 
   // ── Bytedance Seedream/Seedance (colok masa depan) ──────────────

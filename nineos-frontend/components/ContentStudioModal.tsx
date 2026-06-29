@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { generateContent, generateMedia, publishNow } from '@/lib/api';
+import { generateContent, generateMedia, mediaStatus, publishNow } from '@/lib/api';
 
 interface Props {
   platforms: { slug: string; label: string }[];
@@ -46,11 +46,30 @@ export default function ContentStudioModal({ platforms, onClose, onPublished }: 
     setBusy(true); setError(null);
     try {
       const r = await generateMedia(slug, contentId, mediaPrompt || undefined);
-      setMediaUrl(r.media_urls?.[0] ?? null);
-      setProvider(r.provider ?? provider);
+      // Video (Veo) bisa async → status 'generating' + job_id → polling.
+      if (r.status === 'generating' && r.job_id) {
+        await pollMedia(r.job_id);
+      } else {
+        setMediaUrl(r.media_urls?.[0] ?? null);
+        setProvider(r.provider ?? provider);
+      }
     } catch (e: unknown) {
       setError(getMsg(e));
     } finally { setBusy(false); }
+  };
+
+  const pollMedia = async (jobId: string) => {
+    // Poll tiap 5 dtk, maks ~3 menit (video bisa lama).
+    for (let i = 0; i < 36; i++) {
+      await new Promise(res => setTimeout(res, 5000));
+      const s = await mediaStatus(slug, contentId!, jobId);
+      if (s.status === 'ready') {
+        setMediaUrl(s.media_urls?.[0] ?? null);
+        setProvider(s.provider ?? provider);
+        return;
+      }
+    }
+    throw new Error('Generate media terlalu lama, coba lagi.');
   };
 
   const handlePublish = async () => {

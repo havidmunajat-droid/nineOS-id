@@ -222,6 +222,28 @@ export class SocialService {
   }
 
   /**
+   * Cek status job media async (video Veo). Saat selesai → simpan URL + status 'ready'.
+   */
+  async checkMediaJob(slug: string, contentId: string, jobId: string) {
+    const platform = await this.requirePlatform(slug);
+    const content = await this.prisma.contentItem.findUnique({ where: { id: contentId } });
+    if (!content || content.platformId !== platform.id)
+      throw new NotFoundException(`Content '${contentId}' tidak ditemukan`);
+
+    const result = await this.media.getStatus(jobId);
+    if (result.status === 'processing')
+      return { content_id: contentId, status: 'generating', job_id: jobId };
+    if (result.status === 'failed')
+      throw new BadRequestException(`Generate media gagal: ${result.error ?? 'unknown'}`);
+
+    const item = await this.prisma.contentItem.update({
+      where: { id: contentId },
+      data: { mediaUrls: result.mediaUrl ? [result.mediaUrl] : [], status: 'ready' },
+    });
+    return { content_id: contentId, status: 'ready', media_urls: item.mediaUrls, provider: result.provider };
+  }
+
+  /**
    * Posting REALTIME ke channel terpilih (tanpa jadwal) — ADR-001.
    * Membuat schedule scheduledAt=now lalu menandai langsung; titik colok
    * posting channel nyata (Meta/WA API) ada di sini.

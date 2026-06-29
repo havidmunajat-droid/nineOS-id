@@ -72,6 +72,17 @@ export class SocialController {
     return this.svc.generateMedia(slug, id, body?.prompt);
   }
 
+  @Post('platforms/:slug/content/:id/media-status')
+  @ApiOperation({ summary: 'Cek status generate media async (video Veo)' })
+  @ApiParam({ name: 'slug', example: 'matcha' })
+  mediaStatus(
+    @Param('slug') slug: string,
+    @Param('id') id: string,
+    @Body() body: { job_id: string },
+  ) {
+    return this.svc.checkMediaJob(slug, id, body.job_id);
+  }
+
   @Post('platforms/:slug/content/:id/publish-now')
   @ApiOperation({ summary: 'Posting REALTIME ke channel terpilih (tanpa jadwal)' })
   @ApiParam({ name: 'slug', example: 'matcha' })
