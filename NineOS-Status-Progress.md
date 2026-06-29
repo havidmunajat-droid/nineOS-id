@@ -1,6 +1,6 @@
 # NineOS — Status Progress & Checklist "Tinggal Colok"
 
-> Terakhir diupdate: 21 Juni 2026
+> Terakhir diupdate: 29 Juni 2026
 
 ---
 
@@ -12,6 +12,8 @@
 | Frontend (Next.js 15) | ✅ Selesai — 5 halaman, dark theme Figma |
 | AI Virtual Office | ✅ Aktif — Gemini Flash 2.5 connected |
 | **Integrasi Krama (KPI live)** | ✅ Selesai — NineOS baca KPI Krama real-time |
+| **Content Studio (AI Konten)** | ✅ Selesai — caption Gemini + media-gen (mock/Google) + preview + posting |
+| **Media-gen Google (Veo/Imagen)** | ✅ Kode siap — tinggal aktifkan billing Google |
 | Deploy config (Railway) | ✅ `railway.json` siap — TAPI Railway tak lagi free (min $5/bln) |
 | Deploy aktual | ⏳ Belum — pertimbangkan Render/Fly.io/Koyeb (gratis) |
 
@@ -160,14 +162,22 @@ Railway (NestJS Backend :3000)
 
 ## Next Steps (Urutan Prioritas) — BELUM DIKERJAKAN
 
-1. **Revoke & regenerate Gemini API key** — key lama terekspos di chat
+### 🔴 Prioritas Tinggi
+1. **Revoke & regenerate Gemini API key** — key lama terekspos di chat (aistudio.google.com)
 2. **Deploy backend** → pilih Render (gratis) atau Railway (berbayar), pakai `railway.json`
 3. **Deploy frontend ke Vercel** → set `NEXT_PUBLIC_API_URL` ke URL backend
-4. **Test end-to-end** Virtual Office dari browser
-5. **Colok WhatsApp token** → HelpDesk aktif
-6. **Colok Instagram token** → Social Media aktif
-7. **Setup n8n** → Automation pipelines aktif (dipakai NineOS HelpDesk & Krama WHATSAPP_PUSH)
-8. **Colok URL + token Matcha/NotaBe** → data real masuk (Krama sudah live)
+4. **Set `PUBLIC_BASE_URL`** di env → arahkan ke URL backend deploy (untuk media-gen storage)
+
+### 🟡 Untuk Content Studio produksi
+5. **Aktifkan billing Google** (ai.dev/projects) → uncomment `MEDIA_PROVIDER=google` di `.env`
+6. **Storage cloud** (S3/Cloudinary) → replace `StorageService.saveBase64()` tanpa ubah pemanggil
+7. **API channel nyata** → wire Meta Graph API / WA di `publishNow()` (sekarang masih simulasi `sim_*`)
+
+### 🟢 Colok platform & token
+8. **Colok WhatsApp token** (Meta Business Manager) → HelpDesk aktif
+9. **Colok Instagram token** (Meta for Developers) → Social Media aktif
+10. **Setup n8n** → Automation pipelines aktif
+11. **Colok URL + token Matcha/NotaBe** → data real masuk (Krama sudah live)
 
 ---
 
