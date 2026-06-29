@@ -14,8 +14,9 @@
 | **Integrasi Krama (KPI live)** | ✅ Selesai — NineOS baca KPI Krama real-time |
 | **Content Studio (AI Konten)** | ✅ Selesai — caption Gemini + media-gen (mock/Google) + preview + posting |
 | **Media-gen Google (Veo/Imagen)** | ✅ Kode siap — tinggal aktifkan billing Google |
-| Deploy config (Railway) | ✅ `railway.json` siap — TAPI Railway tak lagi free (min $5/bln) |
-| Deploy aktual | ⏳ Belum — pertimbangkan Render/Fly.io/Koyeb (gratis) |
+| Deploy config | ✅ `railway.json` + `render.yaml` + `vercel.json` siap (commit `e2efb32`) |
+| Deploy aktual | ⏳ Belum — Render/Koyeb/Fly semua WAJIB kartu kredit. Keputusan: pakai **Railway** ($5/bln) saat kapten siap |
+| Test visual | ✅ Via **localhost** (FE :3001, BE :3000) — tak perlu deploy |
 
 ---
 
@@ -163,9 +164,10 @@ Railway (NestJS Backend :3000)
 ## Next Steps (Urutan Prioritas) — BELUM DIKERJAKAN
 
 ### 🔴 Prioritas Tinggi
-1. **Revoke & regenerate Gemini API key** — key lama terekspos di chat (aistudio.google.com)
-2. **Deploy backend** → pilih Render (gratis) atau Railway (berbayar), pakai `railway.json`
-3. **Deploy frontend ke Vercel** → set `NEXT_PUBLIC_API_URL` ke URL backend
+1. **Revoke & regenerate Gemini API key** — key lama terekspos di chat. Cara: aistudio.google.com/apikey → klik ikon hapus di key lama → buat key baru → isi `.env` (lokal) & env deploy
+2. **Deploy backend → Railway** (kapten siapkan akun $5/bln). `render.yaml`/`railway.json` sudah siap. Catatan: Render/Koyeb/Fly semua minta kartu kredit di awal — Railway dipilih.
+   Env vars yang harus diset di Railway: `DATABASE_URL`, `GATEWAY_TOKEN`, `ENCRYPTION_KEY`, `GEMINI_API_KEY`, `AI_PROVIDER=gemini`, `NODE_ENV=production`, `KRAMA_API_URL`, `KRAMA_NINEOS_KEY`, `PUBLIC_BASE_URL`
+3. **Deploy frontend ke Vercel** → ⚠️ build gagal karena root salah. FIX: Vercel Settings → **Root Directory = `nineos-frontend`** → Redeploy. Lalu set `NEXT_PUBLIC_API_URL` = URL backend Railway + `/api/v1`
 4. **Set `PUBLIC_BASE_URL`** di env → arahkan ke URL backend deploy (untuk media-gen storage)
 
 ### 🟡 Untuk Content Studio produksi

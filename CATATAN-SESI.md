@@ -100,6 +100,31 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 2. Di `nineos-backend/.env`: uncomment `MEDIA_PROVIDER=google`
 3. Restart backend → gambar/video asli langsung jalan, tanpa ubah kode
 
+### 🟢 Update Sesi 30 Juni 2026 — Deploy config + Test Lokal
+**Tujuan sesi:** siapkan deploy & bisa lihat test visual.
+
+**Yang dibuat (commit `e2efb32`, sudah push):**
+- `render.yaml` (root) — config deploy backend ke Render
+- `nineos-frontend/vercel.json` — config deploy frontend ke Vercel
+- Fix `.gitignore`: `public/generated/*` + keep `.gitkeep` (folder static harus ada saat deploy)
+- Generate `GATEWAY_TOKEN` & `ENCRYPTION_KEY` baru untuk production (belum dipakai, simpan saat deploy)
+
+**Hasil percobaan deploy — SEMUA BUTUH KARTU KREDIT di awal:**
+- ❌ **Render** — wajib kartu kredit
+- ❌ **Koyeb** — wajib kartu kredit
+- ⏳ **Railway** — KEPUTUSAN: tunggu kapten siapkan Railway ($5/bln), deploy backend di sana nanti
+- ⚠️ **Vercel (frontend)** — build gagal `npm run build exited 1`. Penyebab: Vercel build dari root repo, bukan subfolder.
+  **FIX (jangka panjang, belum diterapkan):** Vercel dashboard → Settings → Build & Deployment → **Root Directory = `nineos-frontend`** → Redeploy. (Cara resmi monorepo Vercel; sekali set permanen). Kapten coba tapi masih error → skip dulu, lanjut setelah Railway.
+
+**✅ TEST LOKAL JALAN (cara lihat visual tanpa deploy):**
+| Apa | URL |
+|-----|-----|
+| Frontend NineOS | http://localhost:3001 |
+| Backend API | http://localhost:3000/api/v1 |
+| Swagger | http://localhost:3000/api/docs |
+- Jalankan: backend `npm run start:dev` (port 3000), frontend `npx next dev -p 3001`
+- ⚠️ KPI live Krama butuh backend Krama di port 3001 — bentrok dgn frontend NineOS. Kalau mau test Krama, atur ulang port (mis. frontend NineOS ke 3100).
+
 ---
 
 ## 🔑 Akun Demo (Krama)
