@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: nineos-backend
+    runtime: node
+    rootDir: nineos-backend
+    buildCommand: npm install && npm run build
+    startCommand: npx prisma migrate deploy && npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: GATEWAY_TOKEN
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: gemini
+      - key: KRAMA_API_URL
+        sync: false
+      - key: KRAMA_NINEOS_KEY
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false

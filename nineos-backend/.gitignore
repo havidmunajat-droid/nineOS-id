@@ -4,5 +4,6 @@ node_modules
 
 /generated/prisma
 
-# Media hasil generate (jangan di-commit)
-public/generated/
+# Media hasil generate (jangan di-commit, tapi folder harus ada)
+public/generated/*
+!public/generated/.gitkeep
