@@ -118,7 +118,12 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 
 **🎯 ARAHAN KAPTEN — fokus fitur SETELAH Railway aktif (30 Juni 2026):**
 1. **Dashboard** — tiap platform tampil KPI-nya (Krama sudah; Matcha/NotaBe/Nine Studio nyusul saat dicolok).
-2. **HelpDesk** — REVISI ARAH: bukan WhatsApp, tapi **chatbot auto-reply** menjawab pertanyaan user di platform masing-masing. Sumber jawaban: konfigurasi **pricing** yang ada di backend tiap platform. (Jadi bukan integrasi WA Meta — drop dari prioritas.)
+2. **HelpDesk** — REVISI FINAL (model escalation, BUKAN chatbot pricing):
+   - Chatbot hidup DI DALAM platform masing-masing (web chat, bukan WA). User Q&A dijawab chatbot platform.
+   - Kalau chatbot MENTOK (di luar wewenang / butuh konfirmasi / tak ada di Q&A) → **escalate ke live agent (manusia)**. DI TITIK INI masuk ke NineOS — admin jawab manual di HelpDesk NineOS.
+   - **Opsi A (REKOMENDASI):** platform kirim percakapan ke NineOS (pola X-NineOS-Key), muncul jadi tiket, admin balas di NineOS, balasan tampil lagi di chat platform via polling (sama pola Krama). Skema NineOS sudah siap: tabel `helpdesk_conversations/messages/escalations` tinggal ganti channel = in-platform chat.
+   - **Opsi B (fallback):** chatbot mentok → kasih contact email → user email → muncul notice di HelpDesk NineOS → admin balas via email. Minus: butuh infra terima email masuk (Mailgun/SendGrid inbound).
+   - Integrasi WA Meta = DI-DROP.
 3. **Social Media** — REVISI ARAH:
    - ❌ TIDAK perlu autoposting → **tidak perlu API sosmed (Meta/IG)**. Cukup **atur jadwal**, kapten posting manual. (Autoposting = tahap scalable nanti.)
    - ✅ Generate AI sudah benar & ada.
