@@ -116,6 +116,19 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 - ⚠️ **Vercel (frontend)** — build gagal `npm run build exited 1`. Penyebab: Vercel build dari root repo, bukan subfolder.
   **FIX (jangka panjang, belum diterapkan):** Vercel dashboard → Settings → Build & Deployment → **Root Directory = `nineos-frontend`** → Redeploy. (Cara resmi monorepo Vercel; sekali set permanen). Kapten coba tapi masih error → skip dulu, lanjut setelah Railway.
 
+**🎯 ARAHAN KAPTEN — fokus fitur SETELAH Railway aktif (30 Juni 2026):**
+1. **Dashboard** — tiap platform tampil KPI-nya (Krama sudah; Matcha/NotaBe/Nine Studio nyusul saat dicolok).
+2. **HelpDesk** — REVISI ARAH: bukan WhatsApp, tapi **chatbot auto-reply** menjawab pertanyaan user di platform masing-masing. Sumber jawaban: konfigurasi **pricing** yang ada di backend tiap platform. (Jadi bukan integrasi WA Meta — drop dari prioritas.)
+3. **Social Media** — REVISI ARAH:
+   - ❌ TIDAK perlu autoposting → **tidak perlu API sosmed (Meta/IG)**. Cukup **atur jadwal**, kapten posting manual. (Autoposting = tahap scalable nanti.)
+   - ✅ Generate AI sudah benar & ada.
+   - 🔧 TODO: **pisahkan AI text (prompt) vs AI gambar/media**.
+   - 🔧 TODO: ganti provider media **Veo → Bytedance** (lebih murah). (Scaffold Bytedance sudah ada di MediaGenerationService.)
+4. **Automation** — kapten BUTUH PENJELASAN FITUR lagi di sesi depan (belum diputuskan).
+5. **Virtual Office** — AI-nya **sama dengan AI text prompt** (satu service). Tambah fitur: **set meeting tiap jam 22:00 (10 malam)** untuk keputusan esok harinya.
+
+> Konsekuensi prioritas: WhatsApp token (Meta) & Instagram token (Meta) **TURUN prioritas / tidak dipakai dulu** sesuai arahan di atas.
+
 **✅ TEST LOKAL JALAN (cara lihat visual tanpa deploy):**
 | Apa | URL |
 |-----|-----|
