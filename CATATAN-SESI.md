@@ -170,6 +170,14 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 - Dashboard ditambah kartu generik `Kandidat` & `Lowongan Aktif` — diverifikasi live di browser (Kandidat 13, Lowongan 3/3)
 - Sisa colok: NotaBe & nineClip (prompt sudah di `NineOS-Integration-Prompts.md`)
 
+### 🟢 Update 3 Juli 2026 (malam) — NINECLIP DICOLOK, DASHBOARD "3 LIVE"
+- nineClip selesai implement `/nineos/*` (slug `nineclip`, backend NestJS di `nineClip/api`)
+- ⚠️ Port default nineClip 3001 BENTROK dgn Krama → **dipindah permanen ke 3002** (`PORT=3002` di `nineClip/api/.env`) + launch config `nineclip-api` ditambahkan
+- Dicolok via env: `NINECLIP_API_URL=http://localhost:3002/api/v1` + `NINECLIP_NINEOS_KEY`
+- Dashboard ditambah kartu generik: `Clip Digenerate`, `Job Pipeline`, `Campaign Aktif`
+- **Diverifikasi live: dashboard "3 Live" — Matcha (produksi) + Krama + nineClip serentak** 🎉
+- Sisa colok: **NotaBe saja** (Nine Studio skip)
+
 **✅ TEST LOKAL JALAN (cara lihat visual tanpa deploy):**
 | Apa | URL |
 |-----|-----|

@@ -46,8 +46,10 @@ Backend schema & API sudah siap. Yang dibutuhkan:
 - [x] API key / token Matcha — ✅ `MATCHA_NINEOS_KEY` di `.env` (KPI live: kandidat, lowongan, revenue)
 - [ ] URL API NotaBe backend
 - [ ] API key / token NotaBe
-- [ ] URL API Krama (kalau sudah ready)
-- [ ] URL API Nine Studio (kalau sudah ready)
+- [x] URL API Krama — ✅ lokal `KRAMA_API_URL` (ganti URL produksi saat Krama deploy)
+- [x] URL API nineClip — ✅ dicolok 3 Juli 2026 (lokal port **3002** via `NINECLIP_API_URL` — port 3001 bentrok Krama, `PORT=3002` sudah diset di `nineClip/api/.env`)
+- [ ] URL API Nine Studio (skip — belum ready)
+- [ ] URL API NotaBe (sesi integrasi belum dikerjakan)
 
 **Cara colok:** masukkan ke `platform_connections` via endpoint `POST /api/v1/platforms/:slug/connections`
 
