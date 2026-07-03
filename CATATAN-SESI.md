@@ -150,6 +150,19 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 
 ⚠️ **KONFIRMASI: GEMINI_API_KEY SUDAH MATI** — test kirim pesan CTO → Google balas 401 Unauthorized. Regenerate di aistudio.google.com/apikey lalu isi `nineos-backend/.env` (prioritas #1 tetap).
 
+### 🟢 Update Sesi 3 Juli 2026 (lanjutan) — Arahan MVP + nineClip + Generalisasi KPI
+**KEPUTUSAN KAPTEN:**
+- MVP = **KPI + Sosmed + Virtual Office**. HelpDesk SKIP dulu (platform-platform belum punya chatbot, baru tombol kontak email). Automation SKIP juga tapi biarkan untuk next.
+- Platform ready: Matcha, NotaBe, Krama, **nineClip** (baru!). Nine Studio skip tapi tetap tampil.
+- Integrasi platform dikerjakan **SEBELUM live** (KPI read-only, tidak tergantung payment gateway), di **sesi terpisah per repo platform** — prompt siap pakai di `NineOS-Integration-Prompts.md`.
+
+**Yang dikerjakan:**
+- **nineClip terdaftar** sebagai platform ke-5 (seed + DB Neon + Sidebar). Krama di seed dikoreksi jadi `ready` (sebelumnya stale `not_ready`).
+- **KPI DIGENERALISASI** — hardcode `SUPPORTED=['krama']` dihapus: `fetchAllKpi()` coba semua platform terdaftar; env konvensi `{SLUG}_API_URL` + `{SLUG}_NINEOS_KEY`. Dashboard kini render section KPI per platform dari `/platforms/kpi/all` (blok `overview` + blok spesifik: orders/drivers/merchants). **Colok platform baru = 0 perubahan kode.**
+- Diverifikasi live di browser: Krama backend dinyalakan → dashboard tampil "1 Live" + 5 kartu KPI Krama; 5 kartu platform (4 Connected); grid responsif.
+- `NineOS-Integration-Contract.md` diupdate (langkah SUPPORTED dihapus) + `NineOS-Integration-Prompts.md` BARU (3 prompt copy-paste utk sesi Matcha/NotaBe/nineClip).
+- ⚠️ **Fix di repo KRAMA (belum di-commit di sana):** `orders.service.ts:174` select `address` yang tidak ada di model Merchant → build error di HEAD. Dihapus (pola sama dgn `listForDriver`). Commit di sesi Krama berikutnya.
+
 **✅ TEST LOKAL JALAN (cara lihat visual tanpa deploy):**
 | Apa | URL |
 |-----|-----|

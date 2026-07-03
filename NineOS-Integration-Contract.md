@@ -66,17 +66,17 @@ Matcha/NotaBe boleh beda isinya sesuai metrik mereka.
 
 Setelah platform menyediakan endpoint di atas, di NineOS tinggal:
 
-1. **Daftarkan platform** (slug, nama) di tabel `platforms`.
+1. **Daftarkan platform** (slug, nama) di tabel `platforms` (via `prisma/seed.ts`).
 2. **Daftarkan koneksi**: `baseUrl` + `apiKey` (terenkripsi) di tabel `platform_connections`
-   — ATAU untuk dev cepat, set env var:
+   — ATAU untuk dev cepat, set env var dengan konvensi `{SLUG}_API_URL` + `{SLUG}_NINEOS_KEY`
+   (slug uppercase, `-` jadi `_`):
    ```
    MATCHA_API_URL=https://.../api/v1
    MATCHA_NINEOS_KEY=<key-yang-sama-dengan-service-account-platform>
    ```
    (lihat `platform-kpi.service.ts` → `getEnvUrl()` / `getEnvKey()`)
-3. **Tambahkan slug** ke array `SUPPORTED` di `platform-kpi.service.ts`
-   (sekarang baru `['krama']`).
-4. Frontend NineOS menampilkan kartu KPI-nya.
+3. Selesai — **tidak perlu ubah kode**. `fetchAllKpi()` otomatis mencoba semua platform
+   terdaftar; yang balas KPI langsung muncul jadi section di dashboard.
 
 ---
 

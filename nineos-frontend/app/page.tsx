@@ -6,13 +6,27 @@ import { timeAgo, rupiah } from '@/lib/format';
 
 interface Platform { id: string; slug: string; name: string; readiness_status: string; }
 interface Alert { id: string; title: string; severity: string; status: string; created_at: string; }
-interface KramaKpi {
-  period: string;
-  overview?: { gmv: number; revenue: number; active_users: number; new_registrations: number };
-  orders?: { total: number; completed: number; cancelled: number; in_progress: number; avg_order_value: number };
-  drivers?: { total_registered: number; online_now: number; active_period: number };
-  merchants?: { total_registered: number; open_now: number; new_period: number };
-  sayur_ai?: { orders: number; ai_sessions: number };
+// Bentuk KPI generik sesuai NineOS-Integration-Contract.md — blok `overview` umum,
+// blok lain (orders/drivers/merchants dst) opsional spesifik platform.
+interface PlatformKpi {
+  period?: string;
+  overview?: { gmv?: number; revenue?: number; active_users?: number; new_registrations?: number };
+  orders?: { total?: number; completed?: number };
+  drivers?: { total_registered?: number; online_now?: number };
+  merchants?: { total_registered?: number; open_now?: number };
+}
+
+// Susun kartu metrik dari blok yang tersedia (maks 5 kartu per platform)
+function kpiCards(kpi: PlatformKpi) {
+  const cards: { label: string; value: string | number; sub: string }[] = [];
+  if (kpi.orders) cards.push({ label: 'Total Order', value: kpi.orders.total ?? '—', sub: `${kpi.orders.completed ?? 0} selesai` });
+  if (kpi.overview?.revenue !== undefined) cards.push({ label: 'Revenue', value: rupiah(kpi.overview.revenue), sub: 'hari ini' });
+  if (kpi.drivers) cards.push({ label: 'Driver Online', value: `${kpi.drivers.online_now ?? 0}/${kpi.drivers.total_registered ?? 0}`, sub: 'aktif bertugas' });
+  if (kpi.merchants) cards.push({ label: 'Merchant Buka', value: `${kpi.merchants.open_now ?? 0}/${kpi.merchants.total_registered ?? 0}`, sub: 'sedang buka' });
+  if (kpi.overview?.gmv !== undefined) cards.push({ label: 'GMV', value: rupiah(kpi.overview.gmv), sub: 'nilai transaksi' });
+  if (kpi.overview?.active_users !== undefined) cards.push({ label: 'User Aktif', value: kpi.overview.active_users, sub: 'periode ini' });
+  if (kpi.overview?.new_registrations !== undefined) cards.push({ label: 'Registrasi Baru', value: kpi.overview.new_registrations, sub: 'periode ini' });
+  return cards.slice(0, 5);
 }
 
 const readinessColor: Record<string, string> = {
@@ -25,8 +39,8 @@ const severityDot: Record<string, string> = {
 export default function DashboardPage() {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [kramaKpi, setKramaKpi] = useState<KramaKpi | null>(null);
-  const [kramaLoading, setKramaLoading] = useState(true);
+  const [kpis, setKpis] = useState<Record<string, PlatformKpi>>({});
+  const [kpiLoading, setKpiLoading] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,10 +51,10 @@ export default function DashboardPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
 
-    api.get('/platforms/krama/kpi?period=today')
-      .then(r => setKramaKpi(r.data))
+    api.get('/platforms/kpi/all?period=today')
+      .then(r => setKpis(r.data ?? {}))
       .catch(() => {})
-      .finally(() => setKramaLoading(false));
+      .finally(() => setKpiLoading(false));
   }, []);
 
   return (
@@ -48,9 +62,9 @@ export default function DashboardPage() {
       <TopBar title="Dashboard" subtitle="Ringkasan operasional NineOS" />
 
       {/* Platform cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {loading
-          ? [...Array(4)].map((_, i) => (
+          ? [...Array(5)].map((_, i) => (
               <div key={i} className="h-[112px] animate-pulse rounded-xl bg-[var(--bg-surface)]" />
             ))
           : platforms.map(p => (
@@ -93,7 +107,7 @@ export default function DashboardPage() {
       {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Platform Aktif', value: platforms.filter(p => p.readiness_status === 'ready').length, sub: 'dari 4 platform' },
+          { label: 'Platform Aktif', value: platforms.filter(p => p.readiness_status === 'ready').length, sub: `dari ${platforms.length || '—'} platform` },
           { label: 'Alert Pending', value: alerts.filter(a => a.status === 'pending').length, sub: 'menunggu dikirim' },
           { label: 'Total Alert', value: alerts.length, sub: 'tercatat' },
         ].map(s => (
@@ -105,28 +119,44 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Krama KPI */}
+      {/* KPI per platform — semua platform yang balas /nineos/kpi tampil di sini */}
       <div className="flex items-center justify-between">
-        <p className="text-[16px] font-semibold text-[var(--text-primary)]">Krama Platform — KPI Hari Ini</p>
-        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${kramaKpi ? 'bg-[color-mix(in_srgb,var(--status-success)_15%,transparent)] text-[var(--status-success)]' : 'bg-[var(--bg-surface)] text-[var(--text-muted)]'}`}>
-          {kramaLoading ? 'memuat...' : kramaKpi ? 'Live' : 'Offline'}
+        <p className="text-[16px] font-semibold text-[var(--text-primary)]">KPI Platform — Hari Ini</p>
+        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${Object.keys(kpis).length ? 'bg-[color-mix(in_srgb,var(--status-success)_15%,transparent)] text-[var(--status-success)]' : 'bg-[var(--bg-surface)] text-[var(--text-muted)]'}`}>
+          {kpiLoading ? 'memuat...' : Object.keys(kpis).length ? `${Object.keys(kpis).length} Live` : 'Offline'}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {[
-          { label: 'Total Order', value: kramaLoading ? null : kramaKpi?.orders?.total ?? '—', sub: `${kramaKpi?.orders?.completed ?? 0} selesai` },
-          { label: 'Revenue', value: kramaLoading ? null : kramaKpi?.overview ? rupiah(kramaKpi.overview.revenue) : '—', sub: 'hari ini' },
-          { label: 'Driver Online', value: kramaLoading ? null : kramaKpi?.drivers ? `${kramaKpi.drivers.online_now}/${kramaKpi.drivers.total_registered}` : '—', sub: 'aktif bertugas' },
-          { label: 'Merchant Buka', value: kramaLoading ? null : kramaKpi?.merchants ? `${kramaKpi.merchants.open_now}/${kramaKpi.merchants.total_registered}` : '—', sub: 'sedang buka' },
-          { label: 'GMV', value: kramaLoading ? null : kramaKpi?.overview ? rupiah(kramaKpi.overview.gmv) : '—', sub: 'nilai transaksi' },
-        ].map(s => (
-          <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
-            <p className="text-[12px] text-[var(--text-muted)]">{s.label}</p>
-            <p className="mt-1 text-[24px] font-bold text-[var(--text-primary)]">{s.value === null ? '—' : s.value}</p>
-            <p className="text-[11px] text-[var(--text-muted)]">{s.sub}</p>
-          </div>
-        ))}
-      </div>
+      {kpiLoading ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-[104px] animate-pulse rounded-xl bg-[var(--bg-surface)]" />
+          ))}
+        </div>
+      ) : Object.keys(kpis).length === 0 ? (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-5 py-8 text-center">
+          <p className="text-[13px] text-[var(--text-muted)]">Belum ada KPI live — pastikan backend platform berjalan dan koneksinya terdaftar</p>
+        </div>
+      ) : (
+        platforms
+          .filter(p => kpis[p.slug])
+          .map(p => (
+            <div key={p.slug} className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-success)]" />
+                <p className="text-[14px] font-semibold text-[var(--text-primary)]">{p.name}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                {kpiCards(kpis[p.slug]).map(s => (
+                  <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
+                    <p className="text-[12px] text-[var(--text-muted)]">{s.label}</p>
+                    <p className="mt-1 text-[24px] font-bold text-[var(--text-primary)]">{s.value}</p>
+                    <p className="text-[11px] text-[var(--text-muted)]">{s.sub}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+      )}
     </div>
   );
 }

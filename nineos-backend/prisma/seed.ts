@@ -10,10 +10,11 @@ async function main() {
   // ── Platforms ──────────────────────────────────────
   console.log('Seeding platforms...');
   const platforms = [
-    { slug: 'matcha', name: 'Matcha', description: 'Platform e-commerce / marketplace Matcha', readinessStatus: 'ready', isPriority: true, sortOrder: 1 },
-    { slug: 'notabe', name: 'NotaBe', description: 'Platform NotaBe', readinessStatus: 'ready', isPriority: true, sortOrder: 2 },
-    { slug: 'krama', name: 'Krama', description: 'Platform Krama (belum ready)', readinessStatus: 'not_ready', isPriority: false, sortOrder: 3 },
-    { slug: 'nine-studio', name: 'Nine Studio', description: 'Platform Nine Studio (belum ready)', readinessStatus: 'not_ready', isPriority: false, sortOrder: 4 },
+    { slug: 'matcha', name: 'Matcha', description: 'Talent Intelligence Platform (matchascore.com)', readinessStatus: 'ready', isPriority: true, sortOrder: 1 },
+    { slug: 'notabe', name: 'NotaBe', description: 'Aplikasi kasir laundry NotaBe', readinessStatus: 'ready', isPriority: true, sortOrder: 2 },
+    { slug: 'krama', name: 'Krama', description: 'Super-app jasa lokal AI Krama', readinessStatus: 'ready', isPriority: true, sortOrder: 3 },
+    { slug: 'nineclip', name: 'nineClip', description: 'AI auto-clipping SaaS nineClip', readinessStatus: 'ready', isPriority: true, sortOrder: 4 },
+    { slug: 'nine-studio', name: 'Nine Studio', description: 'Platform Nine Studio (belum ready)', readinessStatus: 'not_ready', isPriority: false, sortOrder: 5 },
   ];
 
   const platformRecords: Record<string, string> = {};

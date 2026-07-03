@@ -56,12 +56,16 @@ export class PlatformKpiService {
   }
 
   async fetchAllKpi(period: 'today' | 'week' | 'month' = 'today') {
-    // Hanya platform yang punya nineos endpoint (sudah connected atau punya env key)
-    const SUPPORTED = ['krama']; // tambah matcha, notabe, dll saat mereka implement /nineos/kpi
+    // Coba semua platform terdaftar — fetchKpi balikin null kalau belum ada
+    // koneksi connected maupun env var, jadi tidak perlu daftar hardcode.
+    const platforms = await this.prisma.platform.findMany({
+      select: { slug: true },
+      orderBy: { sortOrder: 'asc' },
+    });
 
     const results: Record<string, unknown> = {};
     await Promise.all(
-      SUPPORTED.map(async (slug) => {
+      platforms.map(async ({ slug }) => {
         const kpi = await this.fetchKpi(slug, period);
         if (kpi) results[slug] = kpi;
       }),
@@ -70,21 +74,17 @@ export class PlatformKpiService {
     return results;
   }
 
+  // Konvensi env per platform: {SLUG}_API_URL + {SLUG}_NINEOS_KEY
+  // (slug di-uppercase, '-' jadi '_' — mis. nine-studio → NINE_STUDIO_API_URL)
+  private envName(slug: string, suffix: string): string {
+    return `${slug.toUpperCase().replace(/-/g, '_')}_${suffix}`;
+  }
+
   private getEnvUrl(slug: string): string | null {
-    const map: Record<string, string | undefined> = {
-      krama: process.env.KRAMA_API_URL,
-      matcha: process.env.MATCHA_API_URL,
-      notabe: process.env.NOTABE_API_URL,
-    };
-    return map[slug] ?? null;
+    return process.env[this.envName(slug, 'API_URL')] ?? null;
   }
 
   private getEnvKey(slug: string): string | null {
-    const map: Record<string, string | undefined> = {
-      krama: process.env.KRAMA_NINEOS_KEY,
-      matcha: process.env.MATCHA_NINEOS_KEY,
-      notabe: process.env.NOTABE_NINEOS_KEY,
-    };
-    return map[slug] ?? null;
+    return process.env[this.envName(slug, 'NINEOS_KEY')] ?? null;
   }
 }

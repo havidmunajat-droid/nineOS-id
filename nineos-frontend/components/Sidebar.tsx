@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 const platforms = [
   { slug: 'matcha', label: 'Matcha', ready: true },
   { slug: 'notabe', label: 'NotaBe', ready: true },
-  { slug: 'krama', label: 'Krama', ready: false },
+  { slug: 'krama', label: 'Krama', ready: true },
+  { slug: 'nineclip', label: 'nineClip', ready: true },
   { slug: 'nine-studio', label: 'Nine Studio', ready: false },
 ];
 
