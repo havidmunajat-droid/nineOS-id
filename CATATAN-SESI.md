@@ -163,6 +163,13 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 - `NineOS-Integration-Contract.md` diupdate (langkah SUPPORTED dihapus) + `NineOS-Integration-Prompts.md` BARU (3 prompt copy-paste utk sesi Matcha/NotaBe/nineClip).
 - ⚠️ **Fix di repo KRAMA (belum di-commit di sana):** `orders.service.ts:174` select `address` yang tidak ada di model Merchant → build error di HEAD. Dihapus (pola sama dgn `listForDriver`). Commit di sesi Krama berikutnya.
 
+### 🟢 Update 3 Juli 2026 (sore) — MATCHA DICOLOK, KPI LIVE
+- Matcha selesai implement `/nineos/health` + `/nineos/kpi` (slug `matcha`)
+- Dicolok via env: `MATCHA_API_URL=https://matchascore.com/api` + `MATCHA_NINEOS_KEY` (production URL — lokal Matcha di port 3000 bentrok dgn backend NineOS)
+- KPI Matcha: blok `overview` + `candidates`/`recruiters`/`jobs`/`screenings`/`payments`
+- Dashboard ditambah kartu generik `Kandidat` & `Lowongan Aktif` — diverifikasi live di browser (Kandidat 13, Lowongan 3/3)
+- Sisa colok: NotaBe & nineClip (prompt sudah di `NineOS-Integration-Prompts.md`)
+
 **✅ TEST LOKAL JALAN (cara lihat visual tanpa deploy):**
 | Apa | URL |
 |-----|-----|

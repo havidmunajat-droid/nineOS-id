@@ -14,6 +14,8 @@ interface PlatformKpi {
   orders?: { total?: number; completed?: number };
   drivers?: { total_registered?: number; online_now?: number };
   merchants?: { total_registered?: number; open_now?: number };
+  candidates?: { total_registered?: number; new_period?: number };
+  jobs?: { total?: number; active_now?: number };
 }
 
 // Susun kartu metrik dari blok yang tersedia (maks 5 kartu per platform)
@@ -23,6 +25,8 @@ function kpiCards(kpi: PlatformKpi) {
   if (kpi.overview?.revenue !== undefined) cards.push({ label: 'Revenue', value: rupiah(kpi.overview.revenue), sub: 'hari ini' });
   if (kpi.drivers) cards.push({ label: 'Driver Online', value: `${kpi.drivers.online_now ?? 0}/${kpi.drivers.total_registered ?? 0}`, sub: 'aktif bertugas' });
   if (kpi.merchants) cards.push({ label: 'Merchant Buka', value: `${kpi.merchants.open_now ?? 0}/${kpi.merchants.total_registered ?? 0}`, sub: 'sedang buka' });
+  if (kpi.candidates) cards.push({ label: 'Kandidat', value: kpi.candidates.total_registered ?? 0, sub: `${kpi.candidates.new_period ?? 0} baru periode ini` });
+  if (kpi.jobs) cards.push({ label: 'Lowongan Aktif', value: `${kpi.jobs.active_now ?? 0}/${kpi.jobs.total ?? 0}`, sub: 'sedang tayang' });
   if (kpi.overview?.gmv !== undefined) cards.push({ label: 'GMV', value: rupiah(kpi.overview.gmv), sub: 'nilai transaksi' });
   if (kpi.overview?.active_users !== undefined) cards.push({ label: 'User Aktif', value: kpi.overview.active_users, sub: 'periode ini' });
   if (kpi.overview?.new_registrations !== undefined) cards.push({ label: 'Registrasi Baru', value: kpi.overview.new_registrations, sub: 'periode ini' });

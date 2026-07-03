@@ -42,8 +42,8 @@
 ### Modul 1 — Konfigurasi Backend
 Backend schema & API sudah siap. Yang dibutuhkan:
 
-- [ ] URL API Matcha backend (contoh: `https://api.matcha.id`)
-- [ ] API key / token Matcha
+- [x] URL API Matcha backend — ✅ dicolok 3 Juli 2026 (`https://matchascore.com/api`, via env `MATCHA_API_URL`)
+- [x] API key / token Matcha — ✅ `MATCHA_NINEOS_KEY` di `.env` (KPI live: kandidat, lowongan, revenue)
 - [ ] URL API NotaBe backend
 - [ ] API key / token NotaBe
 - [ ] URL API Krama (kalau sudah ready)
