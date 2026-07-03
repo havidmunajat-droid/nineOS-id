@@ -91,8 +91,7 @@ Pipeline registry & alert engine sudah siap. Yang dibutuhkan:
 ### Modul 5 — Virtual Office
 AI sudah berjalan dengan Gemini Flash 2.5. Yang dibutuhkan:
 
-- [x] Gemini API key — ✅ sudah ada (perlu regenerate yang baru)
-- [ ] **Regenerate Gemini API key** — key lama terekspos di chat, revoke di Google AI Studio
+- [x] Gemini API key — ✅ key baru terpasang & ditest jalan (3 Juli 2026)
 - [ ] Anthropic API key (opsional — fallback provider)
 
 **Cara colok:** update `GEMINI_API_KEY` di `.env` backend

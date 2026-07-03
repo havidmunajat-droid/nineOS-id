@@ -148,7 +148,7 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 **Frontend:** `lib/format.ts` baru (timeAgo, timeAgoShort, rupiah) — duplikasi di page dihapus.
 **Repo:** README.md index baru · `.gitignore` +`*.pt` (yolov8n.pt milik nineClip nyasar di root, aman tak ke-commit) · launch.json +config `nineos-backend`.
 
-⚠️ **KONFIRMASI: GEMINI_API_KEY SUDAH MATI** — test kirim pesan CTO → Google balas 401 Unauthorized. Regenerate di aistudio.google.com/apikey lalu isi `nineos-backend/.env` (prioritas #1 tetap).
+✅ **GEMINI_API_KEY SUDAH DIGANTI & JALAN (3 Juli sore)** — kapten regenerate key baru, diisi ke `nineos-backend/.env`, ditest end-to-end: chat CTO Virtual Office dibalas Gemini. Blocker AI selesai.
 
 ### 🟢 Update Sesi 3 Juli 2026 (lanjutan) — Arahan MVP + nineClip + Generalisasi KPI
 **KEPUTUSAN KAPTEN:**
