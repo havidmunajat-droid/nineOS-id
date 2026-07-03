@@ -121,7 +121,6 @@ export class PlatformsService {
     let errorDetail: string | null = null;
 
     try {
-      const { default: fetch } = await import('node-fetch');
       const res = await fetch(connection.baseUrl, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
       if (!res.ok) {
         status = 'error';

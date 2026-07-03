@@ -3,13 +3,16 @@ import { useEffect, useRef, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import api from '@/lib/api';
 
+// Kontrak sesuai backend virtual-office.service.ts:
+// executives → { role_code, display_name, scope, status: 'active'|'not_ready' }
+// create session → { session_id, ... } · send message → { session_id, replies: [{ role_code, display_name, message }] }
 interface Executive {
-  id: string; role_code: string; display_name: string; status: string;
-  scope_description?: string;
+  role_code: string; display_name: string; status: string;
+  scope?: string;
 }
 interface Message {
   id: string; sender_type: 'founder' | 'executive'; message_text: string;
-  speaker_executive_id?: string; created_at: string;
+  speaker_name?: string; created_at: string;
 }
 interface Session {
   id: string; title: string; status: string;
@@ -45,18 +48,18 @@ export default function VirtualOfficePage() {
   }, [messages]);
 
   const selectExecutive = async (exec: Executive) => {
-    if (exec.status !== 'ready') return;
+    if (exec.status !== 'active') return;
     setSelected(exec);
     setSession(null);
     setMessages([]);
     // Create new session
     try {
       const r = await api.post('/virtual-office/sessions', {
-        mode: 'one_on_one',
+        mode: 'chat',
         title: `Chat dengan ${exec.display_name}`,
-        participant_executive_ids: [exec.id],
+        participant_roles: [exec.role_code],
       });
-      setSession(r.data.data);
+      setSession({ id: r.data.session_id, title: r.data.title ?? '', status: r.data.status });
     } catch (e) { console.error(e); }
   };
 
@@ -74,22 +77,23 @@ export default function VirtualOfficePage() {
     try {
       const r = await api.post(`/virtual-office/sessions/${session.id}/messages`, {
         message_text: text,
-        sender_type: 'founder',
       });
-      const replies: Message[] = r.data.data ?? [];
-      setMessages(prev => [
-        ...prev.filter(m => m.id !== optimistic.id),
-        { ...optimistic, id: r.data.founder_message_id ?? optimistic.id },
-        ...replies,
-      ]);
+      const replies: Message[] = (r.data.replies ?? []).map(
+        (rep: { role_code: string; display_name: string; message: string }, i: number) => ({
+          id: `${session.id}-${Date.now()}-${i}`,
+          sender_type: 'executive' as const,
+          message_text: rep.message,
+          speaker_name: rep.display_name,
+          created_at: new Date().toISOString(),
+        }),
+      );
+      setMessages(prev => [...prev, ...replies]);
     } catch {
       setMessages(prev => prev.filter(m => m.id !== optimistic.id));
     } finally {
       setSending(false);
     }
   };
-
-  const getExecName = (id?: string) => executives.find(e => e.id === id)?.display_name ?? 'AI';
 
   return (
     <div className="flex flex-col gap-6 max-w-[1116px]">
@@ -119,11 +123,11 @@ export default function VirtualOfficePage() {
               ))
             ) : (
               executives.map(exec => {
-                const isReady = exec.status === 'ready';
-                const isActive = selected?.id === exec.id;
+                const isReady = exec.status === 'active';
+                const isActive = selected?.role_code === exec.role_code;
                 return (
                   <button
-                    key={exec.id}
+                    key={exec.role_code}
                     onClick={() => selectExecutive(exec)}
                     disabled={!isReady}
                     className={`w-full rounded-lg p-3 text-left transition-colors mb-0.5 ${
@@ -153,9 +157,9 @@ export default function VirtualOfficePage() {
                         </div>
                       </div>
                     </div>
-                    {exec.scope_description && (
+                    {exec.scope && (
                       <p className="mt-1.5 pl-12 text-[11px] text-[var(--text-muted)] leading-relaxed truncate">
-                        {exec.scope_description}
+                        {exec.scope}
                       </p>
                     )}
                   </button>
@@ -212,7 +216,7 @@ export default function VirtualOfficePage() {
                       >
                         {!isFounder && (
                           <p className="text-[10px] font-semibold mb-1 opacity-70">
-                            {getExecName(m.speaker_executive_id)}
+                            {m.speaker_name ?? selected.display_name}
                           </p>
                         )}
                         <p className="whitespace-pre-wrap">{m.message_text}</p>

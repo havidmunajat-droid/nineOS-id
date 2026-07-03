@@ -134,6 +134,22 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 
 > Konsekuensi prioritas: WhatsApp token (Meta) & Instagram token (Meta) **TURUN prioritas / tidak dipakai dulu** sesuai arahan di atas.
 
+### 🟢 Update Sesi 3 Juli 2026 — Optimalisasi Struktur NineOS
+**Backend:**
+- `CommonModule` global baru (`src/common/common.module.ts`) — AIService, EncryptionService, MediaGenerationService, StorageService kini didaftarkan SEKALI (sebelumnya di-provide ulang di 3+ module → instance ganda)
+- Hapus dependency `node-fetch` — pakai global fetch Node (2 titik: platform-kpi & platforms.service)
+- Root API `GET /api/v1` kini health check `{status:'ok', service:'nineos-api'}` (siap dipakai healthcheck Railway); `app.service.ts` Hello World dihapus
+
+**Bug nyata yang ketemu & diperbaiki saat verifikasi visual:**
+1. **Kartu platform dashboard selalu kosong** — `GET /platforms` balas array mentah tapi frontend baca `r.data.data`. Fixed → 4 kartu tampil (3 Connected).
+2. **Virtual Office tidak bisa dipakai sama sekali** — kontrak frontend ≠ backend: cek `status==='ready'` (backend: `'active'`), kirim `participant_executive_ids` (backend: `participant_roles`), kirim `sender_type` di body pesan (ditolak `forbidNonWhitelisted`), baca `r.data.data` untuk session/replies (backend: `session_id`/`replies`). Semua diselaraskan → pilih C-Level, buka sesi, kirim pesan JALAN (diverifikasi via browser).
+3. Warning React "unique key" hilang (akibat `key={exec.id}` yang undefined).
+
+**Frontend:** `lib/format.ts` baru (timeAgo, timeAgoShort, rupiah) — duplikasi di page dihapus.
+**Repo:** README.md index baru · `.gitignore` +`*.pt` (yolov8n.pt milik nineClip nyasar di root, aman tak ke-commit) · launch.json +config `nineos-backend`.
+
+⚠️ **KONFIRMASI: GEMINI_API_KEY SUDAH MATI** — test kirim pesan CTO → Google balas 401 Unauthorized. Regenerate di aistudio.google.com/apikey lalu isi `nineos-backend/.env` (prioritas #1 tetap).
+
 **✅ TEST LOKAL JALAN (cara lihat visual tanpa deploy):**
 | Apa | URL |
 |-----|-----|

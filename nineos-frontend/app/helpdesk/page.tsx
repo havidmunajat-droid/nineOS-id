@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import api from '@/lib/api';
+import { timeAgoShort } from '@/lib/format';
 
 interface Conversation {
   id: string; customer_name: string | null; customer_identifier: string;
@@ -51,13 +52,6 @@ export default function HelpdeskPage() {
     (c.customer_name ?? c.customer_identifier).toLowerCase().includes(search.toLowerCase())
   );
 
-  const timeAgo = (iso: string) => {
-    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-    if (mins < 60) return `${mins}m lalu`;
-    if (mins < 1440) return `${Math.floor(mins / 60)}j lalu`;
-    return `${Math.floor(mins / 1440)}h lalu`;
-  };
-
   return (
     <div className="flex flex-col gap-6 max-w-[1116px]">
       <TopBar title="HelpDesk" subtitle="Automasi tanya jawab pelanggan" />
@@ -98,7 +92,7 @@ export default function HelpdeskPage() {
                       {c.channel_type} · {c.platform?.name}
                     </p>
                     <p className="text-[11px] text-[var(--text-muted)] truncate">
-                      {timeAgo(c.last_message_at)}
+                      {timeAgoShort(c.last_message_at)}
                     </p>
                   </button>
                   {i < filtered.length - 1 && <div className="mx-4 h-px bg-[var(--border)]" />}

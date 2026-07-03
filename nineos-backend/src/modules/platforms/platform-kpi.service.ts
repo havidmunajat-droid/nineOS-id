@@ -38,7 +38,6 @@ export class PlatformKpiService {
     if (!baseUrl || !apiKey) return null;
 
     try {
-      const { default: fetch } = await import('node-fetch');
       const res = await fetch(`${baseUrl}/nineos/kpi?period=${period}`, {
         headers: { 'X-NineOS-Key': apiKey },
         signal: AbortSignal.timeout(8000),

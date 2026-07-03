@@ -18,6 +18,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "C:/Users/ulwan/nineOS-id/nineos-frontend", "run", "dev", "--", "-p", "3100"],
       "port": 3100
+    },
+    {
+      "name": "nineos-backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/ulwan/nineOS-id/nineos-backend", "run", "start:dev"],
+      "port": 3000
+    },
+    {
+      "name": "design-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "C:/Users/ulwan/matcha-id/matcha-design-system/project", "-l", "8088"],
+      "port": 8088
     }
   ]
 }

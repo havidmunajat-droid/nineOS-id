@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import api from '@/lib/api';
+import { timeAgo, rupiah } from '@/lib/format';
 
 interface Platform { id: string; slug: string; name: string; readiness_status: string; }
 interface Alert { id: string; title: string; severity: string; status: string; created_at: string; }
@@ -21,18 +22,6 @@ const severityDot: Record<string, string> = {
   critical: 'var(--status-error)', warning: 'var(--status-warning)', info: 'var(--status-success)',
 };
 
-function timeAgo(iso: string) {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return 'baru saja';
-  if (mins < 60) return `${mins} menit lalu`;
-  const hrs = Math.floor(mins / 60);
-  return hrs < 24 ? `${hrs} jam lalu` : `${Math.floor(hrs / 24)} hari lalu`;
-}
-
-function rupiah(n: number) {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
-}
-
 export default function DashboardPage() {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -42,7 +31,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/platforms').then(r => r.data.data ?? []),
+      api.get('/platforms').then(r => (Array.isArray(r.data) ? r.data : r.data.data ?? [])),
       api.get('/automation/alerts').then(r => r.data.data ?? []),
     ]).then(([p, a]) => { setPlatforms(p); setAlerts(a.slice(0, 6)); })
       .catch(() => {})

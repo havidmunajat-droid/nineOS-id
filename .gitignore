@@ -39,3 +39,6 @@ Thumbs.db
 *.jpeg
 *.gif
 *.mp4
+
+# ML model weights (mis. yolov8n.pt milik nineClip — bukan bagian repo ini)
+*.pt
