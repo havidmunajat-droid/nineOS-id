@@ -178,6 +178,13 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 - **Diverifikasi live: dashboard "3 Live" — Matcha (produksi) + Krama + nineClip serentak** 🎉
 - Sisa colok: **NotaBe saja** (Nine Studio skip)
 
+### 🟢 Update 3 Juli 2026 (malam, final) — NOTABE DICOLOK: SEMUA 4 PLATFORM LIVE 🏁
+- NotaBe implement `/nineos/*` sebagai **Supabase Edge Function** (production): `NOTABE_API_URL=https://nhveqjnlvowlksgmustv.supabase.co/functions/v1` + key
+- Blok KPI NotaBe: overview + orders + keuangan (omzet/piutang/pengeluaran) + outlets + pelanggan — data nyata dari **pengujian tertutup Google Play** (user aktif 14, toko 12, pelanggan 13)
+- Dashboard ditambah kartu generik: `Toko Terdaftar`, `Pelanggan`
+- **MVP KPI KOMPLIT: Krama + Matcha + nineClip + NotaBe semua tercolok.** Matcha & NotaBe baca produksi (selalu live); Krama & nineClip lokal (live saat backend jalan, ganti URL saat deploy)
+- Next: Sosmed MVP (pisah AI text/media, Bytedance) → Virtual Office meeting 22:00 → deploy Railway
+
 **✅ TEST LOKAL JALAN (cara lihat visual tanpa deploy):**
 | Apa | URL |
 |-----|-----|
