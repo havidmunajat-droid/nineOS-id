@@ -178,6 +178,49 @@ Kode provider Google sudah dibangun lengkap & diverifikasi (commit `c6f980d`):
 - **Diverifikasi live: dashboard "3 Live" — Matcha (produksi) + Krama + nineClip serentak** 🎉
 - Sisa colok: **NotaBe saja** (Nine Studio skip)
 
+### 🟢 Update 4 Juli 2026 — VIRTUAL OFFICE DAILY MEETING + SOCIAL MEDIA MVP JADWAL
+
+**Virtual Office — Tab Daily Meeting 22:00:**
+- Ditambah tab "Daily Meeting" di sidebar (sebelumnya hanya "Chat 1-on-1")
+- Tombol **"+ Jadwalkan Meeting 22:00"** — buat sesi `mode=meeting` dengan semua C-Level aktif + `scheduled_at` malam ini 22:00 WIB
+- Deteksi otomatis: kalau meeting hari ini sudah ada → tombol berubah "✓ Meeting Malam Ini Terjadwal"
+- Dalam meeting: **semua C-Level aktif merespons sekaligus** (CEO, CFO, CTO, CMO — masing-masing AI-nya menjawab sesuai domain)
+- History meeting tersimpan di DB, bisa dibuka kembali lain waktu
+- Tidak ada backend change — backend sudah support `mode=meeting` + `participant_roles[]` + `scheduled_at`
+
+**Social Media MVP — Jadwal Posting Manual:**
+- Backend: tambah kolom `scheduledAt (DateTime?)` ke tabel `content_items` (migration `20260704011515_add_content_scheduled_at`)
+- `UpdateContentDto` direvisi: semua field opsional + tambah `status` + `scheduled_at` (sebelumnya extend CreateContentDto yang semua required)
+- `updateContent` service apply `status` & `scheduledAt` dari DTO
+- `formatContent` kini return `scheduled_at` di semua response
+- Frontend — **ContentStudioModal** tambah panel "Posting Manual → Set Jadwal":
+  - date + time picker (WIB) → simpan sebagai `status=scheduled + scheduled_at`
+  - Success state "Konten Terjadwal 📅"
+- Frontend — **social/page.tsx** tambah section **"Jadwal Hari Ini"**:
+  - Muncul HANYA kalau ada konten `status=scheduled` dengan `scheduled_at` hari ini atau lewat
+  - Tiap kartu: platform badge, jam, caption (bisa di-copy), tombol "✓ Posted"
+  - Klik Posted → PUT `status=published` → kartu hilang dari section
+
+**Rekomendasi Infrastruktur Scale (dicatat Kapten, dikerjakan nanti):**
+- AI Text: Gemini Flash 2.5 sudah tepat → aktifkan billing → hilangkan rate limit
+- AI Gambar: fal.ai + FLUX (~Rp300-500/gambar), atau Bytedance (scaffold sudah ada)
+- AI Video nineClip: RunPod/Modal (GPU on-demand)
+- Storage: Cloudinary free 25GB → swap StorageService
+- DB: Neon upgrade ($19/bln) saat 0.5GB penuh
+- Redis: caching AI response + job queue video async
+- Total estimasi produksi: ~$30-35/bln
+
+**Status NineOS saat Kapten istirahat (semua platform masih hidup sama):**
+- Matcha + NotaBe: production (always live)
+- Krama + nineClip: lokal (live saat backend platform berjalan)
+- Frontend: localhost:3100 | Backend: localhost:3000
+
+**Next langkah setelah semua platform live:**
+1. Deploy backend → Railway
+2. Fix Vercel frontend (Root Directory = `nineos-frontend`)
+3. Aktifkan billing Gemini → Cloudinary storage
+4. HelpDesk escalation model (setelah platform-platform punya chatbot sendiri)
+
 ### 🟢 Update 3 Juli 2026 (malam, final) — NOTABE DICOLOK: SEMUA 4 PLATFORM LIVE 🏁
 - NotaBe implement `/nineos/*` sebagai **Supabase Edge Function** (production): `NOTABE_API_URL=https://nhveqjnlvowlksgmustv.supabase.co/functions/v1` + key
 - Blok KPI NotaBe: overview + orders + keuangan (omzet/piutang/pengeluaran) + outlets + pelanggan — data nyata dari **pengujian tertutup Google Play** (user aktif 14, toko 12, pelanggan 13)

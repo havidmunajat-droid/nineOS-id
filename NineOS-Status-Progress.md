@@ -1,6 +1,6 @@
 # NineOS — Status Progress & Checklist "Tinggal Colok"
 
-> Terakhir diupdate: 29 Juni 2026
+> Terakhir diupdate: 4 Juli 2026
 
 ---
 
@@ -8,15 +8,16 @@
 
 | Layer | Status |
 |-------|--------|
-| Backend (NestJS + PostgreSQL) | ✅ Selesai — 24 tabel, 54+ endpoint |
+| Backend (NestJS + PostgreSQL) | ✅ Selesai — 24 tabel + scheduledAt migration, 54+ endpoint |
 | Frontend (Next.js 15) | ✅ Selesai — 5 halaman, dark theme Figma |
-| AI Virtual Office | ✅ Aktif — Gemini Flash 2.5 connected |
-| **Integrasi Krama (KPI live)** | ✅ Selesai — NineOS baca KPI Krama real-time |
-| **Content Studio (AI Konten)** | ✅ Selesai — caption Gemini + media-gen (mock/Google) + preview + posting |
+| AI Virtual Office + Daily Meeting | ✅ Chat 1-on-1 + Meeting 22:00 dengan semua C-Level |
+| **KPI 4 Platform Live** | ✅ Matcha + NotaBe (production) + Krama + nineClip (lokal) |
+| **Content Studio (AI Konten)** | ✅ Generate caption Gemini + Set Jadwal + section Jadwal Hari Ini |
+| **Social Media Jadwal Manual** | ✅ Kapten set tanggal/jam, posting manual, tandai Posted |
 | **Media-gen Google (Veo/Imagen)** | ✅ Kode siap — tinggal aktifkan billing Google |
-| Deploy config | ✅ `railway.json` + `render.yaml` + `vercel.json` siap (commit `e2efb32`) |
-| Deploy aktual | ⏳ Belum — Render/Koyeb/Fly semua WAJIB kartu kredit. Keputusan: pakai **Railway** ($5/bln) saat kapten siap |
-| Test visual | ✅ Via **localhost** (FE :3001, BE :3000) — tak perlu deploy |
+| Deploy config | ✅ `railway.json` + `render.yaml` + `vercel.json` siap |
+| Deploy aktual | ⏳ Tunggu kapten siapkan Railway ($5/bln) |
+| Test visual | ✅ Via **localhost** (FE :3100, BE :3000) |
 
 ---
 
