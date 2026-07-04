@@ -37,7 +37,17 @@ export class CreateContentDto {
   created_by?: string;
 }
 
-export class UpdateContentDto extends CreateContentDto {}
+export class UpdateContentDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() caption?: string;
+  @ApiPropertyOptional({ enum: ['image', 'video', 'carousel'] })
+  @IsOptional() @IsIn(['image', 'video', 'carousel']) media_type?: string;
+  @ApiPropertyOptional() @IsOptional() @IsArray() @IsString({ each: true }) media_urls?: string[];
+  @ApiPropertyOptional({ enum: ['draft', 'scheduled', 'published'] })
+  @IsOptional() @IsIn(['draft', 'scheduled', 'published']) status?: string;
+  @ApiPropertyOptional({ example: '2026-07-04T15:00:00.000Z' })
+  @IsOptional() @IsDateString() scheduled_at?: string;
+}
 
 export class GenerateCaptionDto {
   @ApiProperty({ example: 'Caption promo diskon 20% matcha latte, tone santai' }) @IsString()

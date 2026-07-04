@@ -244,10 +244,11 @@ model ContentItem {
   mediaType    String   @default("image") @db.VarChar(20)
   mediaUrls    String[]
   aiPromptUsed String?
-  status       String   @default("draft") @db.VarChar(20)
-  createdBy    String?  @db.VarChar(150)
-  createdAt    DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  status       String    @default("draft") @db.VarChar(20)
+  scheduledAt  DateTime? @db.Timestamptz(6)
+  createdBy    String?   @db.VarChar(150)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
 
   platform  Platform          @relation(fields: [platformId], references: [id], onDelete: Cascade)
   schedules ContentSchedule[]

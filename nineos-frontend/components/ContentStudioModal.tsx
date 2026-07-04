@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { generateContent, generateMedia, mediaStatus, publishNow } from '@/lib/api';
+import { generateContent, generateMedia, mediaStatus, publishNow, updateContent } from '@/lib/api';
 
 interface Props {
   platforms: { slug: string; label: string }[];
@@ -25,6 +25,12 @@ export default function ContentStudioModal({ platforms, onClose, onPublished }: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  // Set Jadwal state
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [scheduled, setScheduled] = useState<string | null>(null); // ISO string setelah berhasil dijadwalkan
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -72,6 +78,21 @@ export default function ContentStudioModal({ platforms, onClose, onPublished }: 
     throw new Error('Generate media terlalu lama, coba lagi.');
   };
 
+  const handleSetSchedule = async () => {
+    if (!contentId || !scheduleDate || !scheduleTime) return;
+    setBusy(true); setError(null);
+    try {
+      // Gabungkan date+time → ISO (WIB UTC+7)
+      const iso = new Date(`${scheduleDate}T${scheduleTime}:00+07:00`).toISOString();
+      await updateContent(slug, contentId, { status: 'scheduled', scheduled_at: iso, caption, media_type: mediaType });
+      setScheduled(iso);
+      setShowScheduler(false);
+      onPublished();
+    } catch (e: unknown) {
+      setError(getMsg(e));
+    } finally { setBusy(false); }
+  };
+
   const handlePublish = async () => {
     if (!contentId || !channels.length) return;
     setBusy(true); setError(null);
@@ -105,7 +126,17 @@ export default function ContentStudioModal({ platforms, onClose, onPublished }: 
           <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-[20px] leading-none">×</button>
         </div>
 
-        {done ? (
+        {scheduled ? (
+          <div className="py-10 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/15 text-[24px]">📅</div>
+            <p className="text-[15px] font-semibold text-[var(--text-primary)]">Konten Terjadwal!</p>
+            <p className="text-[12px] text-[var(--text-muted)] mt-1">
+              {new Date(scheduled).toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Jakarta' })} WIB
+            </p>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">Tampil di "Jadwal Hari Ini" saat waktunya</p>
+            <button onClick={onClose} className="mt-5 rounded-lg bg-[var(--brand-red)] px-5 py-2 text-[13px] font-semibold text-white">Selesai</button>
+          </div>
+        ) : done ? (
           <div className="py-10 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/15 text-[24px]">✓</div>
             <p className="text-[15px] font-semibold text-[var(--text-primary)]">Berhasil diposting!</p>
@@ -155,6 +186,34 @@ export default function ContentStudioModal({ platforms, onClose, onPublished }: 
                   <label className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">Prompt Visual</label>
                   <textarea value={mediaPrompt} onChange={e => setMediaPrompt(e.target.value)} rows={2}
                     className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-[12px] text-[var(--text-muted)] outline-none resize-none" />
+                </div>
+
+                {/* Set Jadwal — manual posting tanpa generate media */}
+                <div className="rounded-lg border border-[var(--border)] bg-white/3 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[12px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Posting Manual</p>
+                    <button
+                      onClick={() => setShowScheduler(s => !s)}
+                      className="text-[12px] font-semibold text-[var(--brand-red)]"
+                    >
+                      {showScheduler ? 'Batal' : '🗓️ Set Jadwal'}
+                    </button>
+                  </div>
+                  {showScheduler && (
+                    <div className="mt-3 flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                          className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none" />
+                        <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
+                          className="w-[110px] rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none" />
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)]">Waktu WIB · Kapten posting manual di platform sosmed</p>
+                      <button onClick={handleSetSchedule} disabled={busy || !scheduleDate || !scheduleTime}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40">
+                        {busy ? 'Menyimpan...' : '✓ Konfirmasi Jadwal'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Media preview */}

@@ -31,6 +31,8 @@ export const mediaStatus = (slug: string, id: string, job_id: string) =>
   api.post(`/platforms/${slug}/content/${id}/media-status`, { job_id }).then(r => r.data);
 export const publishNow = (slug: string, id: string, channels: string[]) =>
   api.post(`/platforms/${slug}/content/${id}/publish-now`, { channels }).then(r => r.data);
+export const updateContent = (slug: string, id: string, data: Record<string, unknown>) =>
+  api.put(`/platforms/${slug}/content/${id}`, data).then(r => r.data);
 
 // ── Automation ─────────────────────────────────────────────────
 export const getPipelines = () => api.get('/automation/pipelines').then(r => r.data);

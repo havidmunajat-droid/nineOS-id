@@ -2,11 +2,21 @@
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import ContentStudioModal from '@/components/ContentStudioModal';
-import api from '@/lib/api';
+import api, { updateContent } from '@/lib/api';
 
 interface Content {
   id: string; platform_slug: string; media_type: string; caption: string;
-  status: string; scheduled_at?: string; published_at?: string; created_at: string;
+  status: string; scheduled_at?: string | null; published_at?: string; created_at: string;
+}
+
+function isTodayOrPastWIB(isoStr: string): boolean {
+  const WIB = 7 * 60 * 60 * 1000;
+  const d = new Date(isoStr);
+  const today = new Date(Date.now() + WIB);
+  const todayStr = `${today.getUTCFullYear()}-${today.getUTCMonth()}-${today.getUTCDate()}`;
+  const dWIB = new Date(d.getTime() + WIB);
+  const dStr = `${dWIB.getUTCFullYear()}-${dWIB.getUTCMonth()}-${dWIB.getUTCDate()}`;
+  return dStr <= todayStr;
 }
 
 const statusColors: Record<string, string> = {
@@ -34,6 +44,7 @@ export default function SocialPage() {
   const [tab, setTab] = useState('Semua');
   const [platformFilter, setPlatformFilter] = useState('all');
   const [showStudio, setShowStudio] = useState(false);
+  const [markingId, setMarkingId] = useState<string | null>(null);
 
   const loadContent = () => {
     setLoading(true);
@@ -50,6 +61,15 @@ export default function SocialPage() {
   };
 
   useEffect(() => { loadContent(); }, []);
+
+  const markAsPosted = async (c: Content) => {
+    setMarkingId(c.id);
+    try {
+      await updateContent(c.platform_slug, c.id, { status: 'published', caption: c.caption, media_type: c.media_type });
+      setContents(prev => prev.map(x => x.id === c.id ? { ...x, status: 'published' } : x));
+    } catch { /* diam saja jika gagal */ }
+    finally { setMarkingId(null); }
+  };
 
   const filtered = contents.filter(c => {
     if (platformFilter !== 'all' && c.platform_slug !== platformFilter) return false;
@@ -74,6 +94,59 @@ export default function SocialPage() {
           onPublished={loadContent}
         />
       )}
+
+      {/* Jadwal Hari Ini */}
+      {(() => {
+        const todayItems = contents.filter(c => c.status === 'scheduled' && c.scheduled_at && isTodayOrPastWIB(c.scheduled_at));
+        if (!todayItems.length) return null;
+        return (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+              <p className="text-[14px] font-semibold text-[var(--text-primary)]">Jadwal Hari Ini</p>
+              <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-400">{todayItems.length} konten</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {todayItems.map(c => {
+                const timeStr = c.scheduled_at
+                  ? new Date(c.scheduled_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })
+                  : '—';
+                const isPast = c.scheduled_at ? new Date(c.scheduled_at) < new Date() : false;
+                return (
+                  <div key={c.id} className={`flex items-start gap-4 rounded-xl border p-4 ${isPast ? 'border-[var(--status-warning)]/30 bg-[color-mix(in_srgb,var(--status-warning)_5%,transparent)]' : 'border-blue-500/20 bg-blue-500/5'}`}>
+                    {/* Platform + time */}
+                    <div className="flex flex-col items-center gap-1 shrink-0 w-[72px]">
+                      <span className="rounded-full bg-[var(--bg-surface)] border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)] uppercase">{c.platform_slug}</span>
+                      <span className={`text-[13px] font-bold ${isPast ? 'text-[var(--status-warning)]' : 'text-blue-400'}`}>{timeStr}</span>
+                      <span className="text-[10px] text-[var(--text-muted)]">{c.media_type}</span>
+                    </div>
+                    {/* Caption */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] text-[var(--text-primary)] leading-relaxed line-clamp-3">{c.caption}</p>
+                    </div>
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(c.caption)}
+                        className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => markAsPosted(c)}
+                        disabled={markingId === c.id}
+                        className="rounded-lg bg-[var(--status-success)]/80 hover:bg-[var(--status-success)] px-3 py-1.5 text-[11px] font-semibold text-white transition-colors disabled:opacity-50"
+                      >
+                        {markingId === c.id ? '...' : '✓ Posted'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Tabs + filter row */}
       <div className="flex items-center justify-between gap-3">

@@ -111,6 +111,10 @@ export class SocialService {
         ...(dto.caption && { caption: dto.caption }),
         ...(dto.media_type && { mediaType: dto.media_type }),
         ...(dto.media_urls !== undefined && { mediaUrls: dto.media_urls }),
+        ...(dto.status && { status: dto.status }),
+        ...(dto.scheduled_at !== undefined && {
+          scheduledAt: dto.scheduled_at ? new Date(dto.scheduled_at) : null,
+        }),
       },
     });
     return this.formatContent(item);
@@ -397,14 +401,16 @@ export class SocialService {
 
   private formatContent(item: {
     id: string; title: string | null; caption: string; mediaType: string;
-    mediaUrls: string[]; status: string; createdBy: string | null;
-    aiPromptUsed: string | null; createdAt: Date; updatedAt: Date;
+    mediaUrls: string[]; status: string; scheduledAt: Date | null;
+    createdBy: string | null; aiPromptUsed: string | null;
+    createdAt: Date; updatedAt: Date;
   }) {
     return {
       id: item.id, title: item.title, caption: item.caption,
       media_type: item.mediaType, media_urls: item.mediaUrls,
       status: item.status, created_by: item.createdBy,
       ai_prompt_used: item.aiPromptUsed,
+      scheduled_at: item.scheduledAt?.toISOString() ?? null,
       created_at: item.createdAt.toISOString(),
     };
   }
