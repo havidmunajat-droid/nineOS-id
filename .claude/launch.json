@@ -36,6 +36,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "serve", "C:/Users/ulwan/matcha-id/matcha-design-system/project", "-l", "8088"],
       "port": 8088
+    },
+    {
+      "name": "ninegen-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/ulwan/nineGen-id/ninegen-web", "run", "dev", "--", "-p", "3200"],
+      "port": 3200
     }
   ]
 }
