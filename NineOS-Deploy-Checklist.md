@@ -46,13 +46,18 @@ hanya 1×/hari) dan satu giliran agentic bisa lewat batas waktu function.
    `nineos-backend/railway.json`, bukan di root repo.
 
 3. Build & start command sudah diatur `railway.json`:
-   - build: `npm ci --include=dev && npm run build`
+   - build: `npm run build`
    - start: `npx prisma migrate deploy && npm run start:prod`
      (migrasi `wave6_agentic_ai_layer` otomatis ikut jalan)
 
-   **`--include=dev` itu wajib, jangan dihapus.** Variable `NODE_ENV=production`
-   membuat npm melewati seluruh `devDependencies`, padahal `@nestjs/cli`
-   (yang menyediakan binary `nest`) ada di sana. Gejalanya:
+   ### ⛔ JANGAN set `NODE_ENV=production` di Railway
+
+   Backend **tidak memakai `NODE_ENV` sama sekali** — sudah dicek, nihil di
+   `src/` maupun `prisma/`. Yang memakainya cuma frontend, dan Vercel
+   mengaturnya sendiri otomatis.
+
+   Tapi **npm** memakainya untuk melewati seluruh `devDependencies`. Padahal
+   `@nestjs/cli` (penyedia binary `nest`) ada di sana. Gejalanya:
 
    ```
    ✓ Generated Prisma Client (v7.8.0) ...
@@ -60,12 +65,18 @@ hanya 1×/hari) dan satu giliran agentic bisa lewat batas waktu function.
    exit code: 127
    ```
 
-   Jebakannya halus: build PERTAMA sering sukses karena Variables belum
-   ditempel. Begitu `NODE_ENV=production` masuk, build berikutnya gagal —
-   terasa seperti "tadi jalan, sekarang rusak" padahal kodenya tidak berubah.
+   Nixpacks sebenarnya sudah menangani ini sendiri; variabel kita yang
+   menggagalkannya. Itu sebabnya build PERTAMA sukses (Variables belum
+   ditempel) lalu build berikutnya gagal — terasa seperti "tadi jalan,
+   sekarang rusak" padahal tidak ada kode yang berubah.
 
-   Kalau di dashboard Railway ada **Custom Build Command** yang masih berisi
-   `npm install && npm run build`, kosongkan supaya `railway.json` yang dipakai.
+   Menambal dengan `npm ci --include=dev` di buildCommand **tidak berhasil**:
+   itu memicu instalasi kedua di atas cache `node_modules` milik Nixpacks dan
+   mati dalam 1 detik. Obatnya bukan menambal, tapi tidak menyalakan
+   penyebabnya — hapus variabel `NODE_ENV`.
+
+   Kalau di dashboard Railway ada **Custom Build Command**, kosongkan supaya
+   `railway.json` yang dipakai.
 
    Versi Node dikunci lewat `engines.node: ">=22.12"` di `nineos-backend/package.json`.
    Prisma 7 menuntut `^20.19 || ^22.12 || >=24.0`; tanpa kunci ini Nixpacks bisa
@@ -79,7 +90,6 @@ hanya 1×/hari) dan satu giliran agentic bisa lewat batas waktu function.
 | `ENCRYPTION_KEY` | ⚠️ dari `DEPLOY-SECRETS.local.txt` — BUKAN yang lama |
 | `AI_PROVIDER` | `gemini` |
 | `GEMINI_API_KEY` | key BARU (regenerate dulu, key lama pernah terekspos) |
-| `NODE_ENV` | `production` |
 | `AGENT_AUTONOMY` | `guarded` |
 | `AGENT_WATCHER` | `on` |
 | `MATCHA_API_URL` | `https://matchascore.com/api` |
