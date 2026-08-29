@@ -42,6 +42,7 @@ model Platform {
   automationAlerts    AutomationAlert[]
   reportLogs          ReportLog[]
   executiveDataSources ExecutiveDataSource[]
+  kpiSnapshots         PlatformKpiSnapshot[]
 
   @@map("platforms")
 }
@@ -442,4 +443,51 @@ model FinancialSnapshot {
   createdAt    DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("financial_snapshots")
+}
+
+// ============================================================
+// Wave 6 — Agentic AI Layer
+// ============================================================
+
+// Memori historis KPI tiap platform. Diisi PlatformWatcherService
+// tiap jam, dipakai agent untuk deteksi tren & anomali (butuh
+// pembanding, bukan cuma angka hari ini).
+model PlatformKpiSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  platformId   String?  @db.Uuid
+  platformSlug String   @db.VarChar(50)
+  period       String   @default("today") @db.VarChar(20)
+  gmv          Decimal? @db.Decimal(18, 2)
+  revenue      Decimal? @db.Decimal(18, 2)
+  activeUsers  Int?
+  payload      Json
+  capturedAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  platform Platform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+
+  @@index([platformSlug, period, capturedAt])
+  @@map("platform_kpi_snapshots")
+}
+
+// Audit trail setiap tool yang dipanggil agent. Tool 'read' langsung
+// executed; tool 'write' berisiko masuk pending_approval dulu sampai
+// kapten menyetujui lewat endpoint /agent/actions/:id/approve.
+model AgentAction {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId     String?   @db.Uuid
+  executiveRole String?   @db.VarChar(20)
+  toolName      String    @db.VarChar(60)
+  riskLevel     String    @default("read") @db.VarChar(20)
+  status        String    @default("executed") @db.VarChar(30)
+  args          Json
+  result        Json?
+  error         String?
+  durationMs    Int?
+  decidedAt     DateTime? @db.Timestamptz(6)
+  decidedBy     String?   @db.VarChar(50)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([status, createdAt])
+  @@index([sessionId])
+  @@map("agent_actions")
 }

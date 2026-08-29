@@ -74,6 +74,43 @@ export class PlatformKpiService {
     return results;
   }
 
+  /**
+   * Dari mana kredensial platform ini sebenarnya dibaca.
+   *
+   * Penting untuk pelaporan yang jujur: platform seperti Matcha & NotaBe
+   * dicolok lewat env var, bukan tabel `platform_connections`. Tanpa ini,
+   * laporan kesehatan akan bilang 'not_configured' padahal KPI-nya jalan.
+   */
+  async describeConfig(slug: string) {
+    const platform = await this.prisma.platform.findUnique({ where: { slug } });
+    const connection = platform
+      ? await this.prisma.platformConnection.findFirst({
+          where: { platformId: platform.id, connectionStatus: 'connected' },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
+
+    if (connection?.baseUrl) {
+      return {
+        source: 'platform_connections' as const,
+        base_url: connection.baseUrl,
+        has_key: Boolean(connection.apiKeyEncrypted),
+      };
+    }
+
+    const envUrl = this.getEnvUrl(slug);
+    if (envUrl) {
+      return {
+        source: 'env' as const,
+        base_url: envUrl,
+        has_key: Boolean(this.getEnvKey(slug)),
+        env_vars: [this.envName(slug, 'API_URL'), this.envName(slug, 'NINEOS_KEY')],
+      };
+    }
+
+    return { source: 'none' as const, base_url: null, has_key: false };
+  }
+
   // Konvensi env per platform: {SLUG}_API_URL + {SLUG}_NINEOS_KEY
   // (slug di-uppercase, '-' jadi '_' — mis. nine-studio → NINE_STUDIO_API_URL)
   private envName(slug: string, suffix: string): string {

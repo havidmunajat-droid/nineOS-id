@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AIService, AIChatMessage } from '../../common/ai/ai.service';
+import { AgentRunnerService } from '../agent/agent-runner.service';
+import { AgentRunResult } from '../../common/agent/agent.types';
 import {
   CreateSessionDto, SendMessageDto, EndSessionDto, AddFinancialSnapshotDto,
 } from './dto/virtual-office.dto';
@@ -10,6 +12,7 @@ export class VirtualOfficeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AIService,
+    private readonly agent: AgentRunnerService,
   ) {}
 
   // ── Executives ────────────────────────────────────────────────
@@ -156,24 +159,39 @@ export class VirtualOfficeService {
       include: { executive: { select: { roleCode: true } } },
     });
 
-    const replies: Array<{ role_code: string; display_name: string; message: string }> = [];
+    const replies: Array<{
+      role_code: string;
+      display_name: string;
+      message: string;
+      tool_calls: AgentRunResult['tool_calls'];
+    }> = [];
 
-    // 4. Untuk setiap executive, buat balasan AI
+    // 4. Untuk setiap executive, jalankan agent (boleh panggil tool sendiri)
     for (const exec of executives) {
-      const contextData = await this.buildContext(exec.roleCode);
-      const aiReply = await this.callAI(exec, history, dto.message_text, contextData);
+      const run = await this.runExecutive(exec, history, dto.message_text, sessionId);
 
       const saved = await this.prisma.executiveMessage.create({
         data: {
           sessionId,
           senderType: 'executive',
           speakerExecutiveId: exec.id,
-          messageText: aiReply,
-          contextData: contextData as object,
+          messageText: run.text,
+          // Jejak tool disimpan menggantikan dump statis lama — inilah bukti
+          // data mana yang benar-benar dipakai executive untuk menjawab.
+          contextData: {
+            provider: run.provider,
+            iterations: run.iterations,
+            tool_calls: run.tool_calls,
+          } as object,
         },
       });
 
-      replies.push({ role_code: exec.roleCode, display_name: exec.displayName, message: saved.messageText });
+      replies.push({
+        role_code: exec.roleCode,
+        display_name: exec.displayName,
+        message: saved.messageText,
+        tool_calls: run.tool_calls,
+      });
     }
 
     return { session_id: sessionId, replies };
@@ -243,24 +261,16 @@ export class VirtualOfficeService {
     };
   }
 
-  // ── private: AI call ──────────────────────────────────────────
+  // ── private: jalankan satu executive sebagai agent ────────────
 
-  private async callAI(
-    exec: { roleCode: string; displayName: string; systemPrompt: string; aiModel: string },
+  private async runExecutive(
+    exec: { id: string; roleCode: string; displayName: string; systemPrompt: string; aiModel: string },
     history: Array<{ senderType: string; messageText: string; executive: { roleCode: string } | null }>,
     latestMessage: string,
-    contextData: Record<string, unknown>,
-  ): Promise<string> {
-    const contextSummary = JSON.stringify(contextData, null, 2);
-    const systemPrompt = `${exec.systemPrompt}
-
-Data konteks terkini dari NineOS dashboard:
-\`\`\`json
-${contextSummary}
-\`\`\`
-
-Jawab sebagai ${exec.displayName} NineOS dalam Bahasa Indonesia. Singkat dan actionable. Jika data tidak tersedia, katakan terus terang.`;
-
+    sessionId: string,
+  ): Promise<AgentRunResult> {
+    // Riwayat khusus executive ini: pesan founder + balasannya sendiri.
+    // Pesan terakhir (yang sedang diproses) sudah dipisah ke `userMessage`.
     const messages: AIChatMessage[] = [];
     for (const msg of history) {
       if (msg.senderType === 'founder') {
@@ -269,11 +279,47 @@ Jawab sebagai ${exec.displayName} NineOS dalam Bahasa Indonesia. Singkat dan act
         messages.push({ role: 'assistant', content: msg.messageText });
       }
     }
-    if (messages.length === 0 || messages[messages.length - 1].role !== 'user') {
-      messages.push({ role: 'user', content: latestMessage });
-    }
+    if (messages[messages.length - 1]?.content === latestMessage) messages.pop();
 
-    return this.ai.chat(systemPrompt, messages, latestMessage, exec.aiModel);
+    return this.agent.run({
+      systemPrompt: this.buildAgentPrompt(exec),
+      history: messages,
+      userMessage: latestMessage,
+      roleCode: exec.roleCode,
+      preferredModel: exec.aiModel,
+      context: {
+        sessionId,
+        executiveRole: exec.roleCode,
+        origin: 'virtual_office',
+      },
+    });
+  }
+
+  /**
+   * Prompt agentic. Bedanya dengan versi lama: data TIDAK lagi disuntik
+   * sebagai blob statis di awal. Executive diberi tahu tool apa yang dia
+   * punya, lalu dia sendiri yang memutuskan data mana yang perlu ditarik.
+   */
+  private buildAgentPrompt(exec: { roleCode: string; displayName: string; systemPrompt: string }): string {
+    return `${exec.systemPrompt}
+
+## Identitas
+Kamu ${exec.displayName} NineOS, menjawab langsung ke founder (panggil dia "kapten"). Bahasa Indonesia, ringkas, langsung ke inti, dan selalu berbasis angka nyata.
+
+## Platform yang kamu awasi
+- **matcha** — Talent Intelligence Platform (matchascore.com). PRODUCTION, live. Metrik: kandidat terdaftar, recruiter, lowongan aktif, screening, payment.
+- **notabe** — Aplikasi kasir laundry NotaBe. PRODUCTION, live. Metrik: GMV, order, omzet, piutang, pengeluaran, jumlah toko, pelanggan.
+- **krama** — Super-app jasa lokal. Masih lokal/dev, KPI sering tidak tersedia.
+- **nineclip** — SaaS auto-clipping. Masih lokal/dev, KPI sering tidak tersedia.
+
+## Aturan kerja
+1. **JANGAN pernah mengarang angka.** Kalau butuh data, panggil tool. Kalau tool bilang tidak tersedia, sampaikan apa adanya dan sebutkan kemungkinan penyebabnya.
+2. **KPI yang berhasil ditarik adalah bukti platform hidup.** Kalau \`get_platform_kpi\` atau \`get_all_platforms_kpi\` mengembalikan angka untuk sebuah platform, platform itu SEHAT — jangan pernah menyebutnya bermasalah hanya karena tool lain menampilkan status koneksi yang aneh. Data KPI selalu lebih otoritatif daripada metadata koneksi.
+3. Angka mentah tidak cukup — beri interpretasi. Kalau ditanya "naik atau turun", pakai \`get_kpi_trend\` atau \`compare_platform_periods\`, jangan menebak dari satu angka.
+4. Boleh memanggil beberapa tool sekaligus dalam satu giliran kalau memang perlu.
+5. Tutup jawaban dengan rekomendasi konkret yang bisa langsung dikerjakan kapten.
+6. Untuk aksi yang butuh persetujuan, sistem akan mengembalikan status \`pending_approval\` + \`action_id\`. Kalau itu terjadi, **katakan terus terang bahwa aksi belum jalan** dan minta kapten menyetujui. Jangan pernah mengaku sudah melakukannya.
+7. Format rupiah dengan pemisah ribuan (mis. Rp140.800).`;
   }
 
   // ── private: Build context per domain ────────────────────────

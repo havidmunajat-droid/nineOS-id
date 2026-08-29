@@ -42,6 +42,24 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "C:/Users/ulwan/nineGen-id/ninegen-web", "run", "dev", "--", "-p", "3200"],
       "port": 3200
+    },
+    {
+      "name": "krama-api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/ulwan/krama-platform/backend/krama-api", "run", "start:dev"],
+      "port": 3001
+    },
+    {
+      "name": "krama-web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "C:/Users/ulwan/krama-platform/apps/krama_app/build/web", "-l", "5599", "-s"],
+      "port": 5599
+    },
+    {
+      "name": "jastiphub-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/ulwan/JastipHub-id", "run", "dev", "--", "-p", "3300"],
+      "port": 3300
     }
   ]
 }

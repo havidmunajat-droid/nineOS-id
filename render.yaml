@@ -16,13 +16,44 @@ services:
         sync: false
       - key: ENCRYPTION_KEY
         sync: false
-      - key: GEMINI_API_KEY
+      - key: PUBLIC_BASE_URL
         sync: false
+
+      # ── AI provider ──────────────────────────────────────────
+      # Sementara pakai Gemini. Untuk pindah ke Claude nanti:
+      # isi ANTHROPIC_API_KEY lalu ubah AI_PROVIDER=anthropic.
       - key: AI_PROVIDER
         value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # ── Agentic AI (Wave 6) ──────────────────────────────────
+      - key: AGENT_AUTONOMY
+        value: guarded
+      - key: AGENT_WATCHER
+        value: "on"
+
+      # ── Platform live: Matcha + NotaBe ───────────────────────
+      - key: MATCHA_API_URL
+        sync: false
+      - key: MATCHA_NINEOS_KEY
+        sync: false
+      - key: NOTABE_API_URL
+        sync: false
+      - key: NOTABE_NINEOS_KEY
+        sync: false
+
+      # ── Platform yang belum deploy (isi saat sudah live) ──────
+      # Dibiarkan kosong dengan sengaja: PlatformKpiService akan
+      # melewatinya, dan watcher tidak akan membuat alert selama
+      # readinessStatus platform-nya bukan 'ready'.
       - key: KRAMA_API_URL
         sync: false
       - key: KRAMA_NINEOS_KEY
         sync: false
-      - key: PUBLIC_BASE_URL
+      - key: NINECLIP_API_URL
+        sync: false
+      - key: NINECLIP_NINEOS_KEY
         sync: false

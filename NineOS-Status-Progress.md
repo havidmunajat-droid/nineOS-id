@@ -1,6 +1,6 @@
 # NineOS — Status Progress & Checklist "Tinggal Colok"
 
-> Terakhir diupdate: 4 Juli 2026
+> Terakhir diupdate: 29 Agustus 2026
 
 ---
 
@@ -11,6 +11,7 @@
 | Backend (NestJS + PostgreSQL) | ✅ Selesai — 24 tabel + scheduledAt migration, 54+ endpoint |
 | Frontend (Next.js 15) | ✅ Selesai — 5 halaman, dark theme Figma |
 | AI Virtual Office + Daily Meeting | ✅ Chat 1-on-1 + Meeting 22:00 dengan semua C-Level |
+| **Agentic AI (Wave 6)** | ✅ AKTIF — executive menarik data live sendiri via tool, watcher proaktif tiap jam, briefing pagi 07:00 WIB |
 | **KPI 4 Platform Live** | ✅ Matcha + NotaBe (production) + Krama + nineClip (lokal) |
 | **Content Studio (AI Konten)** | ✅ Generate caption Gemini + Set Jadwal + section Jadwal Hari Ini |
 | **Social Media Jadwal Manual** | ✅ Kapten set tanggal/jam, posting manual, tandai Posted |
@@ -188,3 +189,77 @@ Railway (NestJS Backend :3000)
 ## Sesi Berikutnya
 
 Lanjutkan di sesi ini atau buat sesi baru. Claude akan membaca memory project ini secara otomatis. Cukup sebut apa yang mau dikerjakan (deploy, colok token X, dll).
+
+---
+
+## 🤖 Wave 6 — Agentic AI (29 Agustus 2026)
+
+AI NineOS naik kelas: dari **chatbot berkonteks statis** menjadi **agent yang menarik datanya sendiri dan boleh bertindak**.
+
+### Apa yang berubah secara mendasar
+
+| Sebelum | Sesudah |
+|---|---|
+| `buildContext()` nge-dump blob data tetap sekali di awal | Executive memilih sendiri tool mana yang dipanggil, berkali-kali, sampai cukup |
+| Matcha & NotaBe **tidak pernah** masuk ke otak AI | KPI live dua platform itu jadi tool kelas satu |
+| AI cuma bisa bicara | AI bisa bikin alert, catat keuangan, draft konten — dan mengajukan aksi sensitif untuk disetujui |
+| AI hanya jalan kalau ditanya | Watcher jalan tiap jam; briefing CEO otomatis tiap 07:00 WIB |
+
+### Komponen baru
+
+| File | Peran |
+|---|---|
+| `src/common/agent/agent.types.ts` | Kontrak tool — subset JSON Schema yang diterima Gemini DAN Anthropic |
+| `src/common/ai/ai.service.ts` | `runAgent()` — loop tool-calling dua provider + retry hormat-kuota |
+| `src/modules/agent/agent-tools.service.ts` | Registry 14 tool + dispatcher + gerbang approval |
+| `src/modules/agent/agent-runner.service.ts` | Penjalan agent + antrian approve/reject + suntik jam WIB |
+| `src/modules/watcher/platform-watcher.service.ts` | Cron snapshot KPI, deteksi anomali, briefing pagi |
+
+### Tingkat risiko tool
+
+- **read** (8 tool) — langsung jalan, tidak mengubah apa pun
+- **write** (3 tool) — `create_alert`, `record_finance_snapshot`, `draft_content`. Langsung jalan, tercatat di `agent_actions`
+- **sensitive** (3 tool) — `schedule_content`, `escalate_helpdesk_conversation`, `set_platform_readiness`. **Ditahan** jadi `pending_approval` sampai kapten menyetujui
+
+Ubah lewat `AGENT_AUTONOMY` di `.env`: `guarded` (default) atau `full`.
+
+### Tabel database baru
+
+- `platform_kpi_snapshots` — memori historis KPI (bahan deteksi tren & anomali)
+- `agent_actions` — audit trail tiap tool yang dipanggil + antrian approval
+
+Migrasi: `20260829050606_wave6_agentic_ai_layer`
+
+### Endpoint baru
+
+```
+GET  /api/v1/agent/tools?role=CFO          list tool + tingkat risiko
+POST /api/v1/agent/tools/:name/run         jalankan satu tool manual (debug)
+GET  /api/v1/agent/actions?status=...      audit trail aksi agent
+POST /api/v1/agent/actions/:id/approve     setujui aksi sensitif → langsung eksekusi
+POST /api/v1/agent/actions/:id/reject      tolak aksi sensitif
+POST /api/v1/agent/watcher/run             paksa siklus watcher sekarang
+POST /api/v1/agent/watcher/briefing        paksa briefing CEO sekarang
+GET  /api/v1/agent/watcher/snapshots       riwayat snapshot KPI
+GET  /api/v1/agent/watcher/status          status watcher + jumlah pending
+```
+
+### Hasil uji end-to-end (29 Agustus 2026, data produksi asli)
+
+- **CFO** ditanya banding Matcha vs NotaBe → memanggil `get_platform_kpi` 2× sendiri, membaca Rp140.800 omzet NotaBe yang seluruhnya masih piutang, dan menyimpulkan masalah cash flow. Tanpa angka karangan.
+- **CMO** diminta draft + jadwalkan konten → `draft_content` jalan, `schedule_content` **ditahan** dengan `action_id`, dan AI terus terang bilang "belum berjalan". Setelah di-approve, konten benar-benar terjadwal 30 Agu 19:00 WIB.
+- **Watcher** merekam 2 snapshot (Matcha + NotaBe) dan otomatis membuat 2 alert critical untuk Krama & nineClip yang backend lokalnya mati.
+- **Briefing CEO** menarik 3 tool sendiri dan menyusun laporan 4 bagian dari angka nyata.
+
+### Dua bug yang ketahuan saat uji dan sudah diperbaiki
+
+1. **Agent tidak tahu hari ini tanggal berapa** — permintaan "jadwalkan besok" diterjemahkan ke `2024-05-16`. Diperbaiki: `AgentRunnerService.clockBlock()` menyuntikkan jam dinding WIB ke setiap agent run.
+2. **`get_platform_health` bohong** — melaporkan NotaBe `not_configured` karena kredensialnya di env var, bukan tabel `platform_connections`. Akibatnya briefing CEO salah menyebut NotaBe bermasalah. Diperbaiki: tool sekarang membuktikan hidup-matinya dengan `kpi_reachable` (panggilan KPI nyata) dan melaporkan sumber kredensial apa adanya.
+
+### ⚠️ Batasan yang perlu kapten tahu
+
+**Gemini free tier dibatasi 5 request/menit.** Satu giliran agentic butuh beberapa request (1 awal + 1 per putaran tool), jadi pemakaian beruntun akan kena HTTP 429. Sudah ditangani dengan retry otomatis sesuai `retryDelay` provider (maks 3 percobaan), tapi jawabannya jadi lambat.
+
+Dua jalan keluar:
+1. Aktifkan billing Gemini di https://ai.dev/projects — kuota naik drastis
+2. Isi `ANTHROPIC_API_KEY` di `.env` — loop Anthropic sudah dibangun lengkap, tinggal ganti `AI_PROVIDER=anthropic`
