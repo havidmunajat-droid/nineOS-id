@@ -150,7 +150,21 @@ Harus balik JSON `{"enabled":true,"autonomy":"guarded",...}`.
 > dengan HTTP 500. Ini disengaja — salah konfigurasi harus berujung
 > dashboard tertutup, bukan dashboard terbuka.
 
-4. Deploy. URL `*.vercel.app` sudah cukup untuk live — domain bisa nyusul kapan saja.
+4. **Node.js Version harus 22.x** (Settings → General → Node.js Version).
+
+   Next.js 16.2.9 menuntut `node >=20.9.0`. Kalau project disetel ke Node 18.x,
+   build mati dalam ~18 detik dengan `Command "npm run build" exited with 1`
+   dan **tanpa kata "error" di mana pun** — karena Next menolaknya lewat
+   kalimat biasa:
+
+   ```
+   You are using Node.js 18.x. For Next.js, Node.js version ">=20.9.0" is required.
+   ```
+
+   Sudah dikunci lewat `engines.node: ">=22"` di `nineos-frontend/package.json`,
+   tapi setelan project di dashboard bisa menimpanya — pastikan keduanya cocok.
+
+5. Deploy. URL `*.vercel.app` sudah cukup untuk live — domain bisa nyusul kapan saja.
 
 ---
 
