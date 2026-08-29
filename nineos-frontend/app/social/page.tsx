@@ -78,7 +78,9 @@ export default function SocialPage() {
     return true;
   });
 
-  const fmt = (iso?: string) => {
+  // scheduled_at bertipe `string | null`, jadi null harus ikut diterima —
+  // kalau tidak, `next build` gagal di tahap typecheck.
+  const fmt = (iso?: string | null) => {
     if (!iso) return '—';
     return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
   };

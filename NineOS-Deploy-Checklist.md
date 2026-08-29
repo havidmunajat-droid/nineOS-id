@@ -75,10 +75,16 @@ Harus balik JSON `{"enabled":true,"autonomy":"guarded",...}`.
 |---|---|
 | `NINEOS_API_URL` | `https://<url-railway>/api/v1` |
 | `NINEOS_GATEWAY_TOKEN` | sama persis dengan `GATEWAY_TOKEN` di Railway |
+| `NINEOS_SESSION_SECRET` | dari `DEPLOY-SECRETS.local.txt` |
+| `NINEOS_PASSWORD` | dari `DEPLOY-SECRETS.local.txt` — password untuk masuk dashboard |
 
-> ⚠️ **Tanpa awalan `NEXT_PUBLIC_`.** Var berawalan itu ikut ter-bundle ke
-> browser dan bisa dibaca siapa pun lewat devtools. Inilah celah yang
-> ditutup oleh proxy `app/api/[...path]/route.ts`.
+> ⚠️ **Keempatnya tanpa awalan `NEXT_PUBLIC_`.** Var berawalan itu ikut
+> ter-bundle ke browser dan bisa dibaca siapa pun lewat devtools. Inilah
+> celah yang ditutup oleh BFF `app/api/[...path]/route.ts`.
+
+> Kalau `NINEOS_SESSION_SECRET` lupa diisi, `proxy.ts` menolak SEMUA request
+> dengan HTTP 500. Ini disengaja — salah konfigurasi harus berujung
+> dashboard tertutup, bukan dashboard terbuka.
 
 4. Deploy. URL `*.vercel.app` sudah cukup untuk live — domain bisa nyusul kapan saja.
 
@@ -86,32 +92,57 @@ Harus balik JSON `{"enabled":true,"autonomy":"guarded",...}`.
 
 ## Langkah 3 — Setelah live, cek ini
 
+- [ ] Buka URL Vercel dalam jendela penyamaran → harus dialihkan ke `/login`
+- [ ] Coba password salah → muncul "Password salah"
+- [ ] Masuk dengan password benar → dashboard terbuka
 - [ ] Buka `/virtual-office` → tanya CFO *"berapa omzet NotaBe hari ini?"* → harus jawab dengan angka nyata
-- [ ] Buka devtools → Network → pastikan panggilan menuju `/api/...` di domain Vercel, **bukan** ke URL Railway
+- [ ] Devtools → Network → panggilan menuju `/api/...` di domain Vercel, **bukan** ke URL Railway
 - [ ] Devtools → Sources → cari `GATEWAY_TOKEN` → harus nihil
 - [ ] `POST /api/agent/watcher/run` → snapshot bertambah
 - [ ] Tunggu sampai 07:00 WIB besok → sesi "Briefing Pagi" muncul sendiri di Virtual Office
 
 ---
 
+## Keamanan — sudah ditutup
+
+| Lapis | Berkas | Fungsi |
+|---|---|---|
+| Gerbang login | `proxy.ts` | Semua halaman dan `/api/...` wajib punya cookie sesi yang sah |
+| Sesi | `lib/session.ts` | Cookie httpOnly bertanda tangan HMAC-SHA256, berlaku 7 hari |
+| Token backend | `app/api/[...path]/route.ts` | Gateway token ditambahkan di server, tidak pernah sampai ke browser |
+
+Diuji: API tanpa login → 401 · halaman tanpa login → dialihkan ke `/login` ·
+password salah → 401 · cookie dipalsukan → 401 · 20 script halaman dipindai,
+tidak ada satu pun yang memuat token.
+
+Ganti password kapan saja lewat env `NINEOS_PASSWORD` di Vercel. Mengganti
+`NINEOS_SESSION_SECRET` akan me-logout semua sesi yang sedang berjalan.
+
+---
+
 ## Yang masih terbuka setelah deploy
 
-### 🔴 Dashboard belum punya login
-Proxy menutup pencurian token, tapi **tidak** menutup akses. Siapa pun yang
-tahu URL `*.vercel.app` bisa membuka dashboard dan memanggil `/api/...`,
-karena proxy menambahkan token untuk siapa saja yang meminta.
+### 🔴 Kuota Gemini free tier — 20 request PER HARI
+Diukur langsung ke API pada 29 Agustus 2026:
 
-Untuk dashboard yang memuat KPI bisnis Matcha & NotaBe, ini perlu ditutup
-sebelum URL-nya disebar. Opsi:
-1. Gerbang password satu-pengguna (cookie httpOnly bertanda tangan) — sepenuhnya
-   di bawah kendali kita, jalan di host mana pun
-2. Vercel Deployment Protection — tergantung paket Vercel kapten
+```
+quotaId : GenerateRequestsPerDayPerProjectPerModel-FreeTier
+value   : 20
+```
 
-### 🟡 Kuota Gemini free tier
-5 request/menit, sementara satu giliran agentic butuh beberapa request.
-Sudah ada retry otomatis, tapi kalau dipakai beruntun akan muncul pesan
-*"Kuota AI provider habis"*. Solusi: aktifkan billing Gemini, atau isi
-`ANTHROPIC_API_KEY` lalu ubah `AI_PROVIDER=anthropic` (nol perubahan kode).
+Satu giliran agentic makan 2–4 request; briefing pagi otomatis saja 4.
+Jadi kuota harian habis setelah ±5 pertanyaan.
+
+**Yang TIDAK terpengaruh** (semuanya deterministik, tanpa AI):
+dashboard KPI Matcha & NotaBe, watcher snapshot tiap jam, deteksi anomali,
+dan alert otomatis. Jadi deploy tetap berguna sejak hari pertama.
+
+**Yang terpengaruh:** chat Virtual Office dan briefing pagi.
+
+Solusi, pilih salah satu:
+1. Isi `ANTHROPIC_API_KEY` di Railway lalu ubah `AI_PROVIDER=anthropic` —
+   nol perubahan kode, nol redeploy frontend
+2. Aktifkan billing Gemini di https://ai.dev/projects
 
 ### 🟡 Satu baris lama tidak bisa didekripsi
 Setelah `ENCRYPTION_KEY` dirotasi, baris `platform_connections` milik Matcha

@@ -10,6 +10,22 @@ const api = axios.create({
   timeout: 300_000,
 });
 
+// Sesi kedaluwarsa (7 hari) → middleware balas 401. Antar kapten ke login
+// alih-alih membiarkan halaman diam dengan data kosong.
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (
+      err?.response?.status === 401 &&
+      typeof window !== 'undefined' &&
+      window.location.pathname !== '/login'
+    ) {
+      window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+    }
+    return Promise.reject(err);
+  },
+);
+
 export default api;
 
 // ── Platforms ──────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 const platforms = [
   { slug: 'matcha', label: 'Matcha', ready: true },
@@ -18,6 +18,16 @@ const modules = [
 
 export default function Sidebar() {
   const path = usePathname();
+  const router = useRouter();
+
+  // Halaman login berdiri sendiri — tanpa navigasi.
+  if (path === '/login') return null;
+
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.replace('/login');
+    router.refresh();
+  };
 
   const navItem = (href: string, label: string) => {
     const active = path === href || path.startsWith(href + '/');
@@ -91,6 +101,13 @@ export default function Sidebar() {
       >
         Settings
       </Link>
+      <button
+        type="button"
+        onClick={logout}
+        className="flex h-8 items-center rounded-md px-2.5 text-left text-[13px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+      >
+        Keluar
+      </button>
     </aside>
   );
 }
