@@ -42,3 +42,6 @@ Thumbs.db
 
 # ML model weights (mis. yolov8n.pt milik nineClip — bukan bagian repo ini)
 *.pt
+
+# Secrets produksi — JANGAN pernah di-commit
+DEPLOY-SECRETS.local.txt

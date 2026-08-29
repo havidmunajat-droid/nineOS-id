@@ -1,11 +1,13 @@
 import axios from 'axios';
 
+// Semua panggilan lewat proxy BFF di app/api/[...path]/route.ts.
+// Gateway token DILARANG ada di sini — apa pun yang ter-bundle ke browser
+// bisa dibaca siapa saja lewat devtools. Token ditambahkan di sisi server.
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1',
-  headers: {
-    Authorization: `Bearer ${process.env.NEXT_PUBLIC_GATEWAY_TOKEN}`,
-    'Content-Type': 'application/json',
-  },
+  baseURL: '/api',
+  headers: { 'Content-Type': 'application/json' },
+  // Giliran agentic bisa lama (loop tool + retry kuota provider).
+  timeout: 300_000,
 });
 
 export default api;
