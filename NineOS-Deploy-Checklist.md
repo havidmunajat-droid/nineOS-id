@@ -70,13 +70,30 @@ hanya 1×/hari) dan satu giliran agentic bisa lewat batas waktu function.
    ditempel) lalu build berikutnya gagal — terasa seperti "tadi jalan,
    sekarang rusak" padahal tidak ada kode yang berubah.
 
-   Menambal dengan `npm ci --include=dev` di buildCommand **tidak berhasil**:
-   itu memicu instalasi kedua di atas cache `node_modules` milik Nixpacks dan
-   mati dalam 1 detik. Obatnya bukan menambal, tapi tidak menyalakan
-   penyebabnya — hapus variabel `NODE_ENV`.
+   **Sudah dikebalkan lewat `nineos-backend/.npmrc` (`include=dev`).**
+   Sekarang `NODE_ENV=production` tidak lagi merusak apa pun — devDependencies
+   tetap terpasang. Dibuktikan dengan `npm config get omit` saat
+   `NODE_ENV=production`:
+
+   | Kondisi | `omit` | Akibat |
+   |---|---|---|
+   | tanpa `.npmrc` | `dev` | devDependencies dilewati → `nest: not found` |
+   | dengan `.npmrc` | *(kosong)* | semua terpasang ✓ |
+
+   Jangan hapus `nineos-backend/.npmrc`. Selain `@nestjs/cli` dan `typescript`,
+   berkas itu juga menjamin `prisma` terpasang — yang dibutuhkan
+   `npx prisma migrate deploy` saat start.
+
+   Tambalan yang SUDAH DICOBA dan gagal, jangan diulang:
+   `npm ci --include=dev` di `buildCommand` → memicu instalasi kedua di atas
+   cache `node_modules` milik Nixpacks, mati dalam 1 detik.
 
    Kalau di dashboard Railway ada **Custom Build Command**, kosongkan supaya
    `railway.json` yang dipakai.
+
+   > ⚠️ Railway **menahan** perubahan Variables sampai tombol **Deploy**
+   > (banner "Apply N changes") ditekan. Menghapus variabel saja tidak cukup —
+   > selama belum di-Deploy, build berikutnya masih memakai nilai lama.
 
    Versi Node dikunci lewat `engines.node: ">=22.12"` di `nineos-backend/package.json`.
    Prisma 7 menuntut `^20.19 || ^22.12 || >=24.0`; tanpa kunci ini Nixpacks bisa
