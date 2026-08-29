@@ -45,8 +45,27 @@ hanya 1×/hari) dan satu giliran agentic bisa lewat batas waktu function.
    Akibat lain: `railway.json` juga tidak terbaca, karena letaknya di
    `nineos-backend/railway.json`, bukan di root repo.
 
-3. Start command sudah diatur `railway.json`: `npx prisma migrate deploy && npm run start:prod`
-   (migrasi `wave6_agentic_ai_layer` otomatis ikut jalan)
+3. Build & start command sudah diatur `railway.json`:
+   - build: `npm ci --include=dev && npm run build`
+   - start: `npx prisma migrate deploy && npm run start:prod`
+     (migrasi `wave6_agentic_ai_layer` otomatis ikut jalan)
+
+   **`--include=dev` itu wajib, jangan dihapus.** Variable `NODE_ENV=production`
+   membuat npm melewati seluruh `devDependencies`, padahal `@nestjs/cli`
+   (yang menyediakan binary `nest`) ada di sana. Gejalanya:
+
+   ```
+   ✓ Generated Prisma Client (v7.8.0) ...
+   sh: 1: nest: not found
+   exit code: 127
+   ```
+
+   Jebakannya halus: build PERTAMA sering sukses karena Variables belum
+   ditempel. Begitu `NODE_ENV=production` masuk, build berikutnya gagal —
+   terasa seperti "tadi jalan, sekarang rusak" padahal kodenya tidak berubah.
+
+   Kalau di dashboard Railway ada **Custom Build Command** yang masih berisi
+   `npm install && npm run build`, kosongkan supaya `railway.json` yang dipakai.
 
    Versi Node dikunci lewat `engines.node: ">=22.12"` di `nineos-backend/package.json`.
    Prisma 7 menuntut `^20.19 || ^22.12 || >=24.0`; tanpa kunci ini Nixpacks bisa

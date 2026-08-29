@@ -3,7 +3,10 @@ services:
     name: nineos-backend
     runtime: node
     rootDir: nineos-backend
-    buildCommand: npm install && npm run build
+    # --include=dev WAJIB: NODE_ENV=production membuat npm melewati
+    # devDependencies, padahal @nestjs/cli (binary `nest`) ada di sana.
+    # Tanpa ini build mati dengan "sh: 1: nest: not found", exit 127.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npx prisma migrate deploy && npm run start:prod
     envVars:
       - key: NODE_ENV
