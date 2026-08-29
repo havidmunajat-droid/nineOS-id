@@ -30,9 +30,27 @@ hanya 1×/hari) dan satu giliran agentic bisa lewat batas waktu function.
 ## Langkah 1 — Railway (backend)
 
 1. New Project → Deploy from GitHub repo → `havidmunajat-droid/nineOS-id`
-2. **Root Directory: `nineos-backend`**
+2. **Root Directory: `nineos-backend`** ← WAJIB. Ini penyebab paling umum build gagal.
+
+   Root repo TIDAK punya `package.json` (cuma dokumen + dua subfolder). Kalau
+   Root Directory dibiarkan di root, Nixpacks tidak mengenalinya sebagai project
+   Node lalu membangun image **tanpa Node.js sama sekali**. Gejalanya:
+
+   ```
+   npm install && npm run build
+   sh: 1: npm: not found
+   exit code: 127
+   ```
+
+   Akibat lain: `railway.json` juga tidak terbaca, karena letaknya di
+   `nineos-backend/railway.json`, bukan di root repo.
+
 3. Start command sudah diatur `railway.json`: `npx prisma migrate deploy && npm run start:prod`
    (migrasi `wave6_agentic_ai_layer` otomatis ikut jalan)
+
+   Versi Node dikunci lewat `engines.node: ">=22.12"` di `nineos-backend/package.json`.
+   Prisma 7 menuntut `^20.19 || ^22.12 || >=24.0`; tanpa kunci ini Nixpacks bisa
+   memilih Node lama dan gagal saat runtime.
 4. Isi Variables:
 
 | Variable | Nilai |
