@@ -45,3 +45,4 @@ Thumbs.db
 
 # Secrets produksi — JANGAN pernah di-commit
 DEPLOY-SECRETS.local.txt
+DEPLOY-VARS.local.txt
