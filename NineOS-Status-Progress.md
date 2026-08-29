@@ -1,6 +1,6 @@
 # NineOS — Status Progress & Checklist "Tinggal Colok"
 
-> Terakhir diupdate: 29 Agustus 2026
+> Terakhir diupdate: 29 Agustus 2026 — **NineOS LIVE**
 
 ---
 
@@ -17,7 +17,7 @@
 | **Social Media Jadwal Manual** | ✅ Kapten set tanggal/jam, posting manual, tandai Posted |
 | **Media-gen Google (Veo/Imagen)** | ✅ Kode siap — tinggal aktifkan billing Google |
 | Deploy config | ✅ `railway.json` + `render.yaml` + `vercel.json` siap |
-| Deploy aktual | ⏳ Tunggu kapten siapkan Railway ($5/bln) |
+| Deploy aktual | ✅ **LIVE** — backend Railway Hobby, frontend Vercel Hobby (29 Agu 2026) |
 | Test visual | ✅ Via **localhost** (FE :3100, BE :3000) |
 
 ---
