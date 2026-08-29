@@ -164,7 +164,21 @@ Harus balik JSON `{"enabled":true,"autonomy":"guarded",...}`.
    Sudah dikunci lewat `engines.node: ">=22"` di `nineos-frontend/package.json`,
    tapi setelan project di dashboard bisa menimpanya — pastikan keduanya cocok.
 
-5. Deploy. URL `*.vercel.app` sudah cukup untuk live — domain bisa nyusul kapan saja.
+5. **Jangan set `NODE_ENV` di Vercel.** Sama seperti Railway, itu membuat npm
+   melewati `devDependencies` — padahal build Next ini membutuhkan
+   `@tailwindcss/postcss`, `tailwindcss`, `typescript`, dan `@types/*` yang
+   semuanya ada di sana. Gejalanya:
+
+   ```
+   Error: Turbopack build failed with 1 errors:
+   ./app/globals.css
+   Error: Cannot find module '@tailwindcss/postcss'
+   ```
+
+   Sudah dikebalkan lewat `nineos-frontend/.npmrc` (`include=dev`), kembar
+   dengan `nineos-backend/.npmrc`. Jangan hapus salah satunya.
+
+6. Deploy. URL `*.vercel.app` sudah cukup untuk live — domain bisa nyusul kapan saja.
 
 ---
 
