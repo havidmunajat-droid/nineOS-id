@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformKpiService } from '../platforms/platform-kpi.service';
 import { AgentRunnerService } from '../agent/agent-runner.service';
+import { AgentRunResult } from '../../common/agent/agent.types';
 
 const TZ = 'Asia/Jakarta';
 
@@ -141,8 +142,13 @@ export class PlatformWatcherService {
     previous: { capturedAt: Date; gmv: unknown; revenue: unknown } | null,
   ): Anomaly[] {
     if (!previous) return [];
-    // Snapshot dari hari kemarin tidak sebanding — 'today' sudah reset.
-    if (!this.isSameJakartaDay(previous.capturedAt, new Date())) return [];
+
+    // Tiap platform punya batas hari sendiri dan kita TIDAK tahu batasnya.
+    // Terbukti di produksi: NotaBe mereset 'today' pada UTC 00:00 (07:00 WIB),
+    // bukan tengah malam WIB. Menebak batas dari sisi kita selalu salah untuk
+    // sebagian platform, jadi anggap perbandingan tidak sah kalau dua snapshot
+    // melewati pergantian hari mana pun — WIB ATAU UTC.
+    if (this.straddlesDayBoundary(previous.capturedAt, new Date())) return [];
 
     const found: Anomaly[] = [];
     for (const metric of ['gmv', 'revenue'] as const) {
@@ -150,6 +156,12 @@ export class PlatformWatcherService {
       const now = overview[metric] != null ? Number(overview[metric]) : null;
       if (before == null || now == null || before <= 0) continue;
       if (now >= before) continue;
+
+      // Jatuh ke TEPAT nol dari nilai positif adalah tanda tangan pergantian
+      // periode, bukan kejadian bisnis. Refund massal sekalipun hampir mustahil
+      // membawa kumulatif ke persis nol. Ini jaring pengaman kedua untuk
+      // platform yang batas harinya tidak kita kenali.
+      if (now === 0) continue;
 
       const dropPct = Number((((before - now) / before) * 100).toFixed(2));
       if (dropPct < 10) continue; // abaikan koreksi kecil
@@ -175,6 +187,12 @@ export class PlatformWatcherService {
     slug: string,
     overview: NonNullable<KpiPayload['overview']>,
   ): Promise<Anomaly[]> {
+    // Tepat setelah counter platform reset, angkanya belum sebanding dengan
+    // capaian sehari penuh kemarin — "baru 0" pada jam pertama itu wajar,
+    // bukan kabar buruk. Beri jeda sampai periode berjalan cukup lama.
+    const hoursSinceReset = await this.hoursSinceLastReset(slug);
+    if (hoursSinceReset !== null && hoursSinceReset < 8) return [];
+
     const now = new Date();
     const yesterdaySameHour = new Date(now.getTime() - 86_400_000);
 
@@ -284,17 +302,41 @@ export class PlatformWatcherService {
       data: { sessionId: session.id, senderType: 'founder', messageText: instruction },
     });
 
-    const run = await this.agent.run({
-      systemPrompt: `${ceo.systemPrompt}
+    // Kalau agent gagal (paling sering: kuota provider habis), sesi TIDAK boleh
+    // ditinggalkan menggantung berstatus 'active' dengan pesan founder tanpa
+    // balasan — itu menumpuk jadi sampah di dashboard dan kapten tidak tahu
+    // kenapa. Tulis sebab kegagalannya sebagai pesan, lalu tutup sesinya.
+    let run: AgentRunResult;
+    try {
+      run = await this.runBriefingAgent(ceo, instruction, session.id);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      const notice = `Briefing pagi tidak bisa disusun.\n\nSebab: ${reason}\n\nWatcher tetap merekam KPI tiap jam, jadi tidak ada data yang hilang. Buka Virtual Office dan tanya CEO langsung kalau kuota sudah pulih.`;
 
-Kamu CEO NineOS. Ini briefing pagi OTOMATIS — kapten belum tentu sedang membaca, jadi tulis lengkap dan mandiri. Bahasa Indonesia, berbasis angka nyata dari tool. Jangan pernah mengarang angka; kalau data tidak tersedia, katakan dan sebutkan dugaan penyebabnya. Format rupiah dengan pemisah ribuan.`,
-      history: [],
-      userMessage: instruction,
-      roleCode: 'CEO',
-      preferredModel: ceo.aiModel,
-      context: { sessionId: session.id, executiveRole: 'CEO', origin: 'watcher' },
-      maxIterations: 8,
-    });
+      await this.prisma.executiveMessage.create({
+        data: {
+          sessionId: session.id,
+          senderType: 'executive',
+          speakerExecutiveId: ceo.id,
+          messageText: notice,
+          contextData: { failed: true, reason } as object,
+        },
+      });
+      await this.prisma.executiveSession.update({
+        where: { id: session.id },
+        data: { status: 'completed', endedAt: new Date(), summary: notice.slice(0, 1000) },
+      });
+
+      this.logger.warn(`Briefing pagi gagal disusun: ${reason}`);
+      return {
+        session_id: session.id,
+        title: session.title,
+        briefing: notice,
+        tool_calls: [],
+        provider: 'none',
+        failed: true,
+      };
+    }
 
     await this.prisma.executiveMessage.create({
       data: {
@@ -321,13 +363,68 @@ Kamu CEO NineOS. Ini briefing pagi OTOMATIS — kapten belum tentu sedang membac
       briefing: run.text,
       tool_calls: run.tool_calls,
       provider: run.provider,
+      failed: false,
     };
+  }
+
+  private runBriefingAgent(
+    ceo: { id: string; systemPrompt: string; aiModel: string },
+    instruction: string,
+    sessionId: string,
+  ): Promise<AgentRunResult> {
+    return this.agent.run({
+      systemPrompt: `${ceo.systemPrompt}
+
+Kamu CEO NineOS. Ini briefing pagi OTOMATIS — kapten belum tentu sedang membaca, jadi tulis lengkap dan mandiri. Bahasa Indonesia, berbasis angka nyata dari tool. Jangan pernah mengarang angka; kalau data tidak tersedia, katakan dan sebutkan dugaan penyebabnya. Format rupiah dengan pemisah ribuan.`,
+      history: [],
+      userMessage: instruction,
+      roleCode: 'CEO',
+      preferredModel: ceo.aiModel,
+      context: { sessionId, executiveRole: 'CEO', origin: 'watcher' },
+      maxIterations: 8,
+    });
   }
 
   // ── helpers ───────────────────────────────────────────────────
 
-  private isSameJakartaDay(a: Date, b: Date): boolean {
-    return this.jakartaDateKey(a) === this.jakartaDateKey(b);
+  /**
+   * Apakah dua waktu terpisah oleh pergantian hari, di zona mana pun yang
+   * mungkin dipakai platform? Kita hanya tahu dua kandidat yang realistis:
+   * WIB (batas milik kita) dan UTC (batas milik NotaBe, terbukti di produksi).
+   * Selama batas sebenarnya tidak diketahui, lebih baik melewatkan anomali
+   * asli sesekali daripada membanjiri kapten dengan alarm palsu tiap hari.
+   */
+  private straddlesDayBoundary(a: Date, b: Date): boolean {
+    if (this.jakartaDateKey(a) !== this.jakartaDateKey(b)) return true;
+    return a.toISOString().slice(0, 10) !== b.toISOString().slice(0, 10);
+  }
+
+  /**
+   * Berapa jam sejak counter platform ini terakhir terlihat reset ke nol.
+   * `null` kalau tidak ada reset yang terekam dalam 48 jam terakhir.
+   */
+  private async hoursSinceLastReset(slug: string): Promise<number | null> {
+    const rows = await this.prisma.platformKpiSnapshot.findMany({
+      where: {
+        platformSlug: slug,
+        period: 'today',
+        capturedAt: { gte: new Date(Date.now() - 48 * 3600_000) },
+      },
+      orderBy: { capturedAt: 'desc' },
+      select: { capturedAt: true, gmv: true },
+      take: 60,
+    });
+
+    // Ditelusuri dari yang terbaru ke belakang: cari titik pertama di mana
+    // nilainya nol sementara snapshot SEBELUMNYA positif.
+    for (let i = 0; i < rows.length - 1; i += 1) {
+      const current = rows[i].gmv != null ? Number(rows[i].gmv) : null;
+      const older = rows[i + 1].gmv != null ? Number(rows[i + 1].gmv) : null;
+      if (current === 0 && older != null && older > 0) {
+        return (Date.now() - rows[i].capturedAt.getTime()) / 3600_000;
+      }
+    }
+    return null;
   }
 
   private jakartaDateKey(d: Date): string {
