@@ -205,6 +205,50 @@ export class AutomationService {
     return { data: alerts.map((a) => this.formatAlert(a)) };
   }
 
+  /**
+   * Kapten menandai alert sudah ditangani.
+   *
+   * Catatan untuk alert otomatis: kalau kondisinya MASIH terjadi di platform
+   * (mis. SOS Krama belum diselesaikan, atau platform masih mati), watcher
+   * akan membuat alert baru di siklus berikutnya. Itu disengaja — menutup
+   * alert di NineOS tidak menyelesaikan masalah di sumbernya.
+   */
+  async resolveAlerts(ids: string[], resolvedBy = 'founder') {
+    const unique = [...new Set(ids)].filter(Boolean);
+    if (unique.length === 0) return { resolved: 0, data: [] };
+
+    const existing = await this.prisma.automationAlert.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, metadata: true, status: true },
+    });
+    const missing = unique.filter((id) => !existing.find((e) => e.id === id));
+    if (missing.length) throw new NotFoundException(`Alert tidak ditemukan: ${missing.join(', ')}`);
+
+    const resolvedAt = new Date().toISOString();
+    // metadata digabung per baris supaya jejak asal alert (source, code, dll.)
+    // tidak hilang, hanya ditambah siapa & kapan menutupnya.
+    await this.prisma.$transaction(
+      existing
+        .filter((e) => e.status !== 'resolved')
+        .map((e) =>
+          this.prisma.automationAlert.update({
+            where: { id: e.id },
+            data: {
+              status: 'resolved',
+              metadata: {
+                ...((e.metadata as Record<string, unknown> | null) ?? {}),
+                resolved_by: resolvedBy,
+                resolved_at: resolvedAt,
+              },
+            },
+          }),
+        ),
+    );
+
+    const updated = await this.prisma.automationAlert.findMany({ where: { id: { in: unique } } });
+    return { resolved: updated.length, data: updated.map((a) => this.formatAlert(a)) };
+  }
+
   async markAlertSent(id: string) {
     const alert = await this.prisma.automationAlert.findUnique({ where: { id } });
     if (!alert) throw new NotFoundException(`Alert '${id}' tidak ditemukan`);

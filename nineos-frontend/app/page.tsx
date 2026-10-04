@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import api from '@/lib/api';
 import { timeAgo, rupiah } from '@/lib/format';
@@ -116,7 +117,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <p className="text-[16px] font-semibold text-[var(--text-primary)]">Aktivitas Terbaru</p>
+      <div className="flex items-center justify-between">
+        <p className="text-[16px] font-semibold text-[var(--text-primary)]">Aktivitas Terbaru</p>
+        {alertStats.pending > 0 && (
+          <Link href="/automation" className="text-[12px] font-medium text-[var(--brand-red)] hover:underline">
+            Tinjau {alertStats.pending} alert →
+          </Link>
+        )}
+      </div>
       <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]">
         {!loading && alerts.length === 0 ? (
           <p className="px-5 py-8 text-center text-[13px] text-[var(--text-muted)]">Belum ada aktivitas</p>

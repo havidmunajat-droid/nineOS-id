@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards,
+  Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags,
@@ -10,7 +10,7 @@ import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import {
   CreatePipelineDto, UpdatePipelineDto, UpdatePipelineRunDto,
-  CreateReportScheduleDto, UpdateReportScheduleDto, CreateAlertDto,
+  CreateReportScheduleDto, UpdateReportScheduleDto, CreateAlertDto, ResolveAlertsDto,
 } from './dto/automation.dto';
 
 @ApiBearerAuth()
@@ -131,10 +131,28 @@ export class AutomationController {
   @ApiTags('Automation Alerts')
   @Get('alerts')
   @ApiOperation({ summary: 'n8n poll: ambil alert pending (atau semua)' })
-  @ApiQuery({ name: 'status', required: false, enum: ['pending', 'sent'] })
+  @ApiQuery({ name: 'status', required: false, enum: ['pending', 'sent', 'resolved'] })
   @ApiQuery({ name: 'platform', required: false })
   listAlerts(@Query('status') status?: string, @Query('platform') platform?: string) {
     return this.svc.listAlerts(status, platform);
+  }
+
+  // Rute statis 'alerts/resolve' didaftarkan SEBELUM 'alerts/:id/...' supaya
+  // kata "resolve" tidak pernah ditangkap sebagai :id.
+  @ApiTags('Automation Alerts')
+  @Patch('alerts/resolve')
+  @ApiOperation({ summary: 'Tandai beberapa alert sudah ditangani sekaligus' })
+  resolveAlerts(@Body() dto: ResolveAlertsDto) {
+    return this.svc.resolveAlerts(dto.ids);
+  }
+
+  @ApiTags('Automation Alerts')
+  @Patch('alerts/:id/resolve')
+  @ApiOperation({ summary: 'Tandai satu alert sudah ditangani' })
+  @ApiParam({ name: 'id', description: 'UUID alert' })
+  async resolveAlert(@Param('id', new ParseUUIDPipe()) id: string) {
+    const result = await this.svc.resolveAlerts([id]);
+    return result.data[0];
   }
 
   @ApiTags('Automation Alerts')

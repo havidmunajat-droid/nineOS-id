@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsString, IsOptional, IsBoolean, IsArray, IsObject, IsIn,
+  IsString, IsOptional, IsBoolean, IsArray, IsObject, IsIn, IsUUID, ArrayMinSize, ArrayMaxSize,
 } from 'class-validator';
 
 export class CreatePipelineDto {
@@ -39,6 +39,11 @@ export class UpdateReportScheduleDto {
   @ApiPropertyOptional({ type: [String] }) @IsOptional() @IsArray() recipients?: string[];
   @ApiPropertyOptional() @IsOptional() @IsBoolean() is_active?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() output_format?: string;
+}
+
+export class ResolveAlertsDto {
+  @ApiProperty({ type: [String], description: 'UUID alert yang ditandai sudah ditangani' })
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(200) @IsUUID('all', { each: true }) ids: string[];
 }
 
 export class CreateAlertDto {
