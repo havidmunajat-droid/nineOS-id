@@ -18,7 +18,21 @@ interface KpiPayload {
     active_users?: number;
     new_registrations?: number;
   };
+  /**
+   * Opsional. Daftar hal yang menurut platform itu sendiri perlu tindakan
+   * manusia sekarang (mis. SOS terbuka di Krama). Platform yang paling tahu
+   * apa yang genting di bisnisnya — NineOS cukup meneruskannya jadi alert.
+   */
+  attention?: Array<{
+    code: string;
+    severity: 'info' | 'warning' | 'critical';
+    title: string;
+    message: string;
+  }>;
 }
+
+/** Awalan alertType untuk alert yang berasal dari blok `attention` platform. */
+const ATTENTION_PREFIX = 'platform_attention:';
 
 export interface Anomaly {
   platformSlug: string;
@@ -88,6 +102,7 @@ export class PlatformWatcherService {
 
     const anomalies: Anomaly[] = [];
     let captured = 0;
+    let attentionCreated = 0;
 
     for (const platform of platforms) {
       const payload = (await this.kpi.fetchKpi(platform.slug, 'today')) as KpiPayload | null;
@@ -128,6 +143,10 @@ export class PlatformWatcherService {
 
       anomalies.push(...this.detectAgainstPrevious(platform.slug, overview, previous));
       anomalies.push(...(await this.detectAgainstYesterday(platform.slug, overview)));
+
+      if (Array.isArray(payload.attention)) {
+        attentionCreated += await this.syncPlatformAttention(platform.id, platform.slug, payload.attention);
+      }
     }
 
     let alertsCreated = 0;
@@ -135,7 +154,7 @@ export class PlatformWatcherService {
       if (await this.recordAlert(anomaly)) alertsCreated += 1;
     }
 
-    return { captured, anomalies, alerts_created: alertsCreated };
+    return { captured, anomalies, alerts_created: alertsCreated + attentionCreated };
   }
 
   /**
@@ -248,6 +267,74 @@ export class PlatformWatcherService {
    * Simpan alert, tapi jangan spam: satu jenis anomali per platform maksimal
    * satu alert pending dalam 6 jam.
    */
+  /**
+   * Sinkronkan blok `attention` platform dengan tabel alert.
+   *
+   * - Kondisi baru → buat alert.
+   * - Kondisi masih ada → JANGAN buat alert baru tiap jam; perbarui judul &
+   *   pesan alert yang sudah ada (mis. umur order tertahan bertambah).
+   * - Kondisi sudah hilang di sisi platform → alert-nya ditutup otomatis.
+   *   Dengan begitu dashboard selalu mencerminkan keadaan sekarang, bukan
+   *   tumpukan riwayat yang harus dibersihkan manual.
+   */
+  private async syncPlatformAttention(
+    platformId: string,
+    slug: string,
+    items: NonNullable<KpiPayload['attention']>,
+  ): Promise<number> {
+    let created = 0;
+    const activeTypes = new Set<string>();
+
+    for (const item of items) {
+      if (!item?.code || !item?.title) continue;
+      const alertType = `${ATTENTION_PREFIX}${item.code}`.slice(0, 50);
+      activeTypes.add(alertType);
+      const severity = ['info', 'warning', 'critical'].includes(item.severity) ? item.severity : 'info';
+
+      const existing = await this.prisma.automationAlert.findFirst({
+        where: { platformId, alertType, status: 'pending' },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (existing) {
+        await this.prisma.automationAlert.update({
+          where: { id: existing.id },
+          data: {
+            severity,
+            title: `${slug}: ${item.title}`.slice(0, 200),
+            message: item.message,
+            metadata: { source: 'platform_attention', code: item.code, last_seen: new Date().toISOString() },
+          },
+        });
+        continue;
+      }
+
+      await this.prisma.automationAlert.create({
+        data: {
+          platformId,
+          alertType,
+          severity,
+          title: `${slug}: ${item.title}`.slice(0, 200),
+          message: item.message,
+          metadata: { source: 'platform_attention', code: item.code, last_seen: new Date().toISOString() },
+          status: 'pending',
+        },
+      });
+      created += 1;
+    }
+
+    await this.prisma.automationAlert.updateMany({
+      where: {
+        platformId,
+        status: 'pending',
+        alertType: { startsWith: ATTENTION_PREFIX, notIn: [...activeTypes] },
+      },
+      data: { status: 'resolved' },
+    });
+
+    return created;
+  }
+
   private async recordAlert(anomaly: Anomaly): Promise<boolean> {
     const platform = await this.prisma.platform.findUnique({
       where: { slug: anomaly.platformSlug },

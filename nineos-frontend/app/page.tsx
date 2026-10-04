@@ -7,41 +7,51 @@ import { timeAgo, rupiah } from '@/lib/format';
 interface Platform { id: string; slug: string; name: string; readiness_status: string; }
 interface Alert { id: string; title: string; severity: string; status: string; created_at: string; }
 // Bentuk KPI generik sesuai NineOS-Integration-Contract.md — blok `overview` umum,
-// blok lain (orders/drivers/merchants dst) opsional spesifik platform.
+// blok lain opsional dan spesifik platform.
+interface AttentionItem { code: string; severity: 'info' | 'warning' | 'critical'; title: string; message: string; }
+
 interface PlatformKpi {
   period?: string;
   overview?: { gmv?: number; revenue?: number; active_users?: number; new_registrations?: number };
-  orders?: { total?: number; completed?: number };
+  orders?: {
+    total?: number; completed?: number; cancelled?: number; cancellation_rate?: number;
+    waiting_pickup?: number; oldest_waiting_minutes?: number | null; avg_order_value?: number;
+  };
   drivers?: { total_registered?: number; online_now?: number };
   merchants?: { total_registered?: number; open_now?: number };
-  candidates?: { total_registered?: number; new_period?: number };
-  jobs?: { total?: number; active_now?: number };
-  clips?: { generated?: number };
-  pipeline?: { jobs_total?: number; jobs_success?: number };
-  campaigns?: { active?: number };
   outlets?: { total_toko?: number; new_toko?: number };
   pelanggan?: { total?: number; new_period?: number };
+  quality?: { avg_rating?: number | null; reviews?: number };
+  /** Hal yang menurut platform itu sendiri perlu tindakan sekarang. */
+  attention?: AttentionItem[];
 }
 
-// Susun kartu metrik dari blok yang tersedia (maks 5 kartu per platform)
+// Susun kartu metrik dari blok yang tersedia. Urutannya disengaja: uang dulu,
+// lalu volume, lalu kondisi lapangan — supaya baris pertama selalu menjawab
+// "berapa yang masuk hari ini".
 function kpiCards(kpi: PlatformKpi) {
   const cards: { label: string; value: string | number; sub: string }[] = [];
-  if (kpi.orders) cards.push({ label: 'Total Order', value: kpi.orders.total ?? '—', sub: `${kpi.orders.completed ?? 0} selesai` });
-  if (kpi.overview?.revenue !== undefined) cards.push({ label: 'Revenue', value: rupiah(kpi.overview.revenue), sub: 'hari ini' });
-  if (kpi.drivers) cards.push({ label: 'Driver Online', value: `${kpi.drivers.online_now ?? 0}/${kpi.drivers.total_registered ?? 0}`, sub: 'aktif bertugas' });
-  if (kpi.merchants) cards.push({ label: 'Merchant Buka', value: `${kpi.merchants.open_now ?? 0}/${kpi.merchants.total_registered ?? 0}`, sub: 'sedang buka' });
-  if (kpi.candidates) cards.push({ label: 'Kandidat', value: kpi.candidates.total_registered ?? 0, sub: `${kpi.candidates.new_period ?? 0} baru periode ini` });
-  if (kpi.jobs) cards.push({ label: 'Lowongan Aktif', value: `${kpi.jobs.active_now ?? 0}/${kpi.jobs.total ?? 0}`, sub: 'sedang tayang' });
-  if (kpi.clips) cards.push({ label: 'Clip Digenerate', value: kpi.clips.generated ?? 0, sub: 'periode ini' });
-  if (kpi.pipeline) cards.push({ label: 'Job Pipeline', value: `${kpi.pipeline.jobs_success ?? 0}/${kpi.pipeline.jobs_total ?? 0}`, sub: 'sukses/total' });
-  if (kpi.campaigns) cards.push({ label: 'Campaign Aktif', value: kpi.campaigns.active ?? 0, sub: 'sedang berjalan' });
+  const o = kpi.overview;
+  if (o?.gmv !== undefined) cards.push({ label: 'GMV', value: rupiah(o.gmv), sub: 'dibayar pelanggan' });
+  if (o?.revenue !== undefined) cards.push({ label: 'Revenue', value: rupiah(o.revenue), sub: 'pendapatan platform' });
+  if (kpi.orders) {
+    cards.push({ label: 'Order', value: kpi.orders.total ?? 0, sub: `${kpi.orders.completed ?? 0} selesai · ${kpi.orders.cancelled ?? 0} batal` });
+    if (kpi.orders.avg_order_value) cards.push({ label: 'Rata-rata Order', value: rupiah(kpi.orders.avg_order_value), sub: 'per order selesai' });
+  }
   if (kpi.outlets) cards.push({ label: 'Toko Terdaftar', value: kpi.outlets.total_toko ?? 0, sub: `${kpi.outlets.new_toko ?? 0} baru periode ini` });
   if (kpi.pelanggan) cards.push({ label: 'Pelanggan', value: kpi.pelanggan.total ?? 0, sub: `${kpi.pelanggan.new_period ?? 0} baru periode ini` });
-  if (kpi.overview?.gmv !== undefined) cards.push({ label: 'GMV', value: rupiah(kpi.overview.gmv), sub: 'nilai transaksi' });
-  if (kpi.overview?.active_users !== undefined) cards.push({ label: 'User Aktif', value: kpi.overview.active_users, sub: 'periode ini' });
-  if (kpi.overview?.new_registrations !== undefined) cards.push({ label: 'Registrasi Baru', value: kpi.overview.new_registrations, sub: 'periode ini' });
-  return cards.slice(0, 5);
+  if (kpi.drivers) cards.push({ label: 'Driver Online', value: `${kpi.drivers.online_now ?? 0}/${kpi.drivers.total_registered ?? 0}`, sub: 'sedang online' });
+  if (kpi.merchants) cards.push({ label: 'Merchant Buka', value: `${kpi.merchants.open_now ?? 0}/${kpi.merchants.total_registered ?? 0}`, sub: 'sedang buka' });
+  if (kpi.quality?.avg_rating != null) cards.push({ label: 'Rating', value: `★ ${kpi.quality.avg_rating}`, sub: `${kpi.quality.reviews ?? 0} ulasan` });
+  if (o?.active_users !== undefined) cards.push({ label: 'Pelanggan Aktif', value: o.active_users, sub: 'memesan periode ini' });
+  return cards.slice(0, 10);
 }
+
+const attentionColor: Record<AttentionItem['severity'], string> = {
+  critical: 'var(--status-error)',
+  warning: 'var(--status-warning)',
+  info: 'var(--status-info)',
+};
 
 const readinessColor: Record<string, string> = {
   ready: 'var(--status-success)', not_ready: 'var(--text-muted)', pending: 'var(--status-warning)',
@@ -167,6 +177,18 @@ export default function DashboardPage() {
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-success)]" />
                 <p className="text-[14px] font-semibold text-[var(--text-primary)]">{p.name}</p>
               </div>
+              {(kpis[p.slug].attention ?? []).length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {kpis[p.slug].attention!.map(a => (
+                    <div key={a.code} className="flex gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3" style={{ borderLeft: `3px solid ${attentionColor[a.severity] ?? "var(--border)"}` }}>
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-[13px] font-semibold text-[var(--text-primary)]">{a.title}</p>
+                        <p className="text-[12px] text-[var(--text-muted)]">{a.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                 {kpiCards(kpis[p.slug]).map(s => (
                   <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">

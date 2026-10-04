@@ -44,7 +44,7 @@ export class AgentToolsService {
     {
       name: 'get_platform_kpi',
       description:
-        'Ambil KPI LIVE terbaru langsung dari backend platform. NotaBe = kasir laundry (GMV, order, omzet, piutang, toko, pelanggan). Krama = super-app jasa lokal (order, GMV, driver online, merchant buka, Sayur.ai). Pakai ini setiap kali ditanya angka terkini sebuah platform.',
+        'Ambil KPI LIVE terbaru langsung dari backend platform. NotaBe = kasir laundry (GMV, order, omzet, piutang, toko, pelanggan). Krama = super-app jasa lokal (GMV = total dibayar pelanggan termasuk ongkir, revenue = fee platform + biaya layanan, order per vertikal & metode bayar, order menunggu diambil, driver online, merchant buka, rating, SOS, penarikan dana mitra). Krama juga mengirim blok attention: daftar hal yang PERLU TINDAKAN sekarang — selalu sebutkan isinya ke kapten kalau tidak kosong. Pakai tool ini setiap kali ditanya angka terkini sebuah platform.',
       risk: 'read',
       parameters: {
         type: 'object',
