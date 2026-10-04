@@ -148,7 +148,7 @@ export class SocialService {
     let mediaPrompt = dto.prompt;
     let hashtags: string[] = [];
     try {
-      const raw = await this.ai.chat(system, [], dto.prompt);
+      const raw = await this.ai.chat(system, [], dto.prompt, undefined, { feature: 'content_caption' });
       const parsed = this.parseJson(raw);
       caption = (parsed.caption as string) ?? raw;
       mediaPrompt = (parsed.media_prompt as string) ?? dto.prompt;

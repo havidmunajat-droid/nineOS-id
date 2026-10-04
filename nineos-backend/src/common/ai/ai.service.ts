@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI, Part } from '@google/generative-ai';
+import { PrismaService } from '../../prisma/prisma.service';
 import {
   AgentRunResult,
   AgentToolDefinition,
@@ -22,6 +23,52 @@ export interface AgentRunOptions {
   preferredModel?: string;
   /** Batas putaran tool-call sebelum dipaksa menjawab. Default 6. */
   maxIterations?: number;
+  /** Label pencatatan biaya AI: fitur mana yang memakai token ini. */
+  usageTag?: UsageTag;
+}
+
+export interface UsageTag {
+  /** mis. 'virtual_office', 'nightly_report', 'content_caption' */
+  feature: string;
+  executiveRole?: string;
+  sessionId?: string;
+}
+
+/**
+ * Penghitung token untuk satu rangkaian request ke SATU model.
+ *
+ * Output Gemini dihitung sebagai total − prompt, bukan candidatesTokenCount:
+ * model 2.5 memakai token "berpikir" yang ditagih sebagai output tapi tidak
+ * masuk candidatesTokenCount (dan tidak diketik di SDK 0.24). Tanpa ini biaya
+ * Gemini tampak lebih murah dari kenyataan dan perbandingan provider berat
+ * sebelah.
+ */
+class UsageMeter {
+  requests = 0;
+  input = 0;
+  output = 0;
+  thinking = 0;
+  cached = 0;
+
+  addGemini(u?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; cachedContentTokenCount?: number }) {
+    this.requests += 1;
+    if (!u) return;
+    const prompt = u.promptTokenCount ?? 0;
+    const candidates = u.candidatesTokenCount ?? 0;
+    const total = u.totalTokenCount ?? prompt + candidates;
+    this.input += prompt;
+    this.output += Math.max(candidates, total - prompt);
+    this.thinking += Math.max(0, total - prompt - candidates);
+    this.cached += u.cachedContentTokenCount ?? 0;
+  }
+
+  addAnthropic(u?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null }) {
+    this.requests += 1;
+    if (!u) return;
+    this.input += (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+    this.output += u.output_tokens ?? 0;
+    this.cached += u.cache_read_input_tokens ?? 0;
+  }
 }
 
 @Injectable()
@@ -30,7 +77,7 @@ export class AIService {
   private anthropic?: Anthropic;
   private gemini?: GoogleGenerativeAI;
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     if (process.env.ANTHROPIC_API_KEY) {
       this.anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     }
@@ -49,21 +96,15 @@ export class AIService {
     history: AIChatMessage[],
     userMessage: string,
     preferredModel?: string,
+    usageTag: UsageTag = { feature: 'chat' },
   ): Promise<string> {
-    const provider = (process.env.AI_PROVIDER ?? this.detectProvider()).toLowerCase();
-
-    if (provider === 'gemini' && this.gemini) {
-      return this.chatGemini(systemPrompt, history, userMessage, preferredModel);
+    const provider = this.activeProvider;
+    try {
+      if (provider === 'gemini') return await this.chatGemini(systemPrompt, history, userMessage, preferredModel, usageTag);
+      if (provider === 'anthropic') return await this.chatAnthropic(systemPrompt, history, userMessage, preferredModel, usageTag);
+    } catch (err) {
+      throw this.providerFailure(err);
     }
-
-    if (provider === 'anthropic' && this.anthropic) {
-      return this.chatAnthropic(systemPrompt, history, userMessage, preferredModel);
-    }
-
-    // Fallback jika provider tidak cocok dengan key yang ada
-    if (this.gemini) return this.chatGemini(systemPrompt, history, userMessage, preferredModel);
-    if (this.anthropic) return this.chatAnthropic(systemPrompt, history, userMessage, preferredModel);
-
     return this.noKeyMessage();
   }
 
@@ -109,7 +150,8 @@ export class AIService {
     systemPrompt: string,
     history: AIChatMessage[],
     userMessage: string,
-    preferredModel?: string,
+    preferredModel: string | undefined,
+    usageTag: UsageTag,
   ): Promise<string> {
     const modelName = this.resolveGeminiModel(preferredModel);
     const model = this.gemini!.getGenerativeModel({
@@ -122,8 +164,11 @@ export class AIService {
       parts: [{ text: m.content }],
     }));
 
+    const meter = new UsageMeter();
     const chat = model.startChat({ history: geminiHistory });
     const result = await chat.sendMessage(userMessage);
+    meter.addGemini(result.response.usageMetadata);
+    await this.recordUsage('gemini', modelName, usageTag, meter, true);
     return result.response.text();
   }
 
@@ -133,7 +178,8 @@ export class AIService {
     systemPrompt: string,
     history: AIChatMessage[],
     userMessage: string,
-    preferredModel?: string,
+    preferredModel: string | undefined,
+    usageTag: UsageTag,
   ): Promise<string> {
     const modelName = this.resolveAnthropicModel(preferredModel);
     const messages = [...history];
@@ -147,6 +193,9 @@ export class AIService {
       system: systemPrompt,
       messages,
     });
+    const meter = new UsageMeter();
+    meter.addAnthropic(response.usage);
+    await this.recordUsage('anthropic', modelName, usageTag, meter, true);
     return response.content[0].type === 'text' ? response.content[0].text : '';
   }
 
@@ -170,13 +219,17 @@ export class AIService {
 
     for (const [index, modelName] of models.entries()) {
       const trace: AgentToolTrace[] = [];
+      const meter = new UsageMeter();
       try {
-        const result = await this.runAgentGeminiWithModel(opts, modelName, trace);
+        const result = await this.runAgentGeminiWithModel(opts, modelName, trace, meter);
+        await this.recordUsage('gemini', modelName, opts.usageTag, meter, true);
         if (index > 0) {
           this.logger.warn(`Agent memakai model cadangan '${modelName}' karena model utama sesak`);
         }
         return result;
       } catch (err) {
+        // Token yang sudah terpakai sebelum gagal tetap ditagih provider.
+        await this.recordUsage('gemini', modelName, opts.usageTag, meter, false);
         lastError = err;
         const canFallBack = this.isTransient(err) && trace.length === 0;
         if (!canFallBack || index === models.length - 1) break;
@@ -193,6 +246,7 @@ export class AIService {
     opts: AgentRunOptions,
     modelName: string,
     trace: AgentToolTrace[],
+    meter: UsageMeter,
   ): Promise<AgentRunResult> {
     const maxIterations = opts.maxIterations ?? 6;
 
@@ -221,6 +275,7 @@ export class AIService {
     });
 
     let result = await this.withQuotaRetry(() => chat.sendMessage(opts.userMessage));
+    meter.addGemini(result.response.usageMetadata);
     let iterations = 0;
 
     while (iterations < maxIterations) {
@@ -249,6 +304,7 @@ export class AIService {
       }
 
       result = await this.withQuotaRetry(() => chat.sendMessage(parts));
+      meter.addGemini(result.response.usageMetadata);
     }
 
     return {
@@ -276,6 +332,23 @@ export class AIService {
   // ── Agentic loop: Anthropic tool use ──────────────────────────
 
   private async runAgentAnthropic(opts: AgentRunOptions): Promise<AgentRunResult> {
+    const meter = new UsageMeter();
+    const modelName = this.resolveAnthropicModel(opts.preferredModel);
+    try {
+      const result = await this.runAgentAnthropicLoop(opts, modelName, meter);
+      await this.recordUsage('anthropic', modelName, opts.usageTag, meter, true);
+      return result;
+    } catch (err) {
+      await this.recordUsage('anthropic', modelName, opts.usageTag, meter, false);
+      throw err;
+    }
+  }
+
+  private async runAgentAnthropicLoop(
+    opts: AgentRunOptions,
+    modelName: string,
+    meter: UsageMeter,
+  ): Promise<AgentRunResult> {
     const maxIterations = opts.maxIterations ?? 6;
     const trace: AgentToolTrace[] = [];
 
@@ -299,13 +372,15 @@ export class AIService {
     while (iterations <= maxIterations) {
       const response = await this.withQuotaRetry(() =>
         this.anthropic!.messages.create({
-          model: this.resolveAnthropicModel(opts.preferredModel),
+          model: modelName,
           max_tokens: 2048,
           system: opts.systemPrompt,
           messages,
           tools,
         }),
       );
+
+      meter.addAnthropic(response.usage);
 
       text = response.content
         .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -388,6 +463,14 @@ export class AIService {
   /** Ubah error provider jadi pesan 503 yang bisa dibaca kapten, sesuai sebabnya. */
   private providerFailure(err: unknown): Error {
     const status = this.statusOf(err);
+    // 402 = billing, bukan gangguan. Terjadi 4 Okt 2026: project Gemini masuk
+    // mode prabayar dengan saldo nol, semua model membalas 402. Tidak diulang
+    // dan tidak pindah model — model lain di project yang sama pasti 402 juga.
+    if (status === 402) {
+      return new ServiceUnavailableException(
+        `Saldo AI provider (${this.activeProvider}) habis. Untuk Gemini: buka aistudio.google.com → project NineOS → Billing, lalu isi saldo prabayar. NineOS langsung normal kembali tanpa perlu deploy.`,
+      );
+    }
     if (status === 429) {
       return new ServiceUnavailableException(
         `Kuota AI provider (${this.activeProvider}) habis untuk hari ini. Gemini free tier dibatasi 20 request per hari. Isi ANTHROPIC_API_KEY atau aktifkan billing Google untuk menghilangkannya.`,
@@ -408,6 +491,34 @@ export class AIService {
     const seconds = raw ? parseInt(raw.replace(/[^0-9]/g, ''), 10) : NaN;
     const resolved = Number.isFinite(seconds) ? seconds * 1000 : 15_000;
     return Math.min(Math.max(resolved, 2_000), 45_000);
+  }
+
+  /**
+   * Simpan pemakaian token. TIDAK PERNAH melempar — gagal mencatat biaya tidak
+   * boleh menggagalkan jawaban AI. Dilewati kalau tidak ada request yang
+   * sampai ke provider (mis. langsung ditolak 503), karena tidak ada yang ditagih.
+   */
+  private async recordUsage(provider: string, model: string, tag: UsageTag | undefined, meter: UsageMeter, succeeded: boolean) {
+    if (meter.requests === 0) return;
+    try {
+      await this.prisma.aiUsage.create({
+        data: {
+          provider,
+          model,
+          feature: (tag?.feature ?? 'unknown').slice(0, 40),
+          executiveRole: tag?.executiveRole ?? null,
+          sessionId: tag?.sessionId ?? null,
+          requests: meter.requests,
+          inputTokens: meter.input,
+          outputTokens: meter.output,
+          thinkingTokens: meter.thinking,
+          cachedTokens: meter.cached,
+          succeeded,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(`Gagal mencatat pemakaian AI: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   /** Jalankan satu tool, catat hasil + durasi ke trace, jangan pernah throw. */

@@ -91,6 +91,7 @@ export default function Sidebar() {
       <div className="h-px bg-[var(--border)]" />
 
       {navItem('/virtual-office', 'Virtual Office')}
+      {navItem('/ai-usage', 'Biaya AI')}
 
       {/* Spacer */}
       <div className="flex-1" />

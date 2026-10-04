@@ -491,3 +491,28 @@ model AgentAction {
   @@index([sessionId])
   @@map("agent_actions")
 }
+
+// Pemakaian token AI per panggilan agent / chat. Dipakai halaman Biaya AI
+// untuk membandingkan provider dengan pemakaian NYATA NineOS, bukan tebakan.
+// Harga sengaja TIDAK disimpan di sini — harga berubah dan berbeda per
+// provider; dihitung di sisi tampilan dari tarif yang diisi kapten.
+model AiUsage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider       String   @db.VarChar(20)
+  model          String   @db.VarChar(80)
+  feature        String   @db.VarChar(40)
+  executiveRole  String?  @db.VarChar(20)
+  sessionId      String?  @db.Uuid
+  requests       Int      @default(1)
+  inputTokens    Int      @default(0)
+  // Termasuk token "berpikir" (Gemini 2.5) — ditagih sebagai output.
+  outputTokens   Int      @default(0)
+  thinkingTokens Int      @default(0)
+  cachedTokens   Int      @default(0)
+  succeeded      Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@index([provider, model])
+  @@map("ai_usage")
+}

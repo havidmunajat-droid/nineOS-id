@@ -40,6 +40,12 @@ export class AgentRunnerService {
       preferredModel: input.preferredModel,
       maxIterations: input.maxIterations,
       dispatch: (call) => this.tools.dispatch(call, input.context),
+      usageTag: {
+        // 'watcher' = Laporan Malam otomatis; 'virtual_office' = chat kapten.
+        feature: input.context.origin === 'watcher' ? 'nightly_report' : input.context.origin,
+        executiveRole: input.context.executiveRole,
+        sessionId: input.context.sessionId,
+      },
     });
   }
 
