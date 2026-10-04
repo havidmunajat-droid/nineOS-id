@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformKpiService } from '../platforms/platform-kpi.service';
+import { NotifierService } from '../../common/notify/notifier.service';
 import {
   AgentExecutionContext,
   AgentToolDefinition,
@@ -36,6 +37,7 @@ export class AgentToolsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly kpi: PlatformKpiService,
+    private readonly notifier: NotifierService,
   ) {}
 
   // ── Definisi tool ─────────────────────────────────────────────
@@ -376,6 +378,12 @@ export class AgentToolsService {
           args: call.args as object,
         },
       });
+      // Gerbang approval percuma kalau kapten tidak tahu ada yang menunggu.
+      await this.notifier.alert(
+        'info',
+        `${ctx.executiveRole ?? 'Agent'} minta persetujuan: ${call.name}`,
+        `Argumen: ${JSON.stringify(call.args).slice(0, 300)}\nSetujui atau tolak di dashboard NineOS. ID: ${action.id}`,
+      );
       return {
         ok: true,
         data: {
@@ -728,6 +736,10 @@ export class AgentToolsService {
         status: 'pending',
       },
     });
+
+    if (alert.severity === 'warning' || alert.severity === 'critical') {
+      await this.notifier.alert(alert.severity, `Temuan AI — ${alert.title}`, alert.message);
+    }
 
     return { created: true, alert_id: alert.id, severity: alert.severity, title: alert.title };
   }

@@ -37,6 +37,10 @@ services:
         value: guarded
       - key: AGENT_WATCHER
         value: "on"
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
 
       # ── Platform live: NotaBe (via env) + Krama (via tabel koneksi) ──
       - key: NOTABE_API_URL

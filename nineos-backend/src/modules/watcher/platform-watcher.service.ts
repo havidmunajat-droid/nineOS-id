@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformKpiService } from '../platforms/platform-kpi.service';
 import { AgentRunnerService } from '../agent/agent-runner.service';
 import { AgentRunResult } from '../../common/agent/agent.types';
+import { NotifierService } from '../../common/notify/notifier.service';
 
 const TZ = 'Asia/Jakarta';
 
@@ -60,6 +61,7 @@ export class PlatformWatcherService {
     private readonly prisma: PrismaService,
     private readonly kpi: PlatformKpiService,
     private readonly agent: AgentRunnerService,
+    private readonly notifier: NotifierService,
   ) {}
 
   // ── Cron ──────────────────────────────────────────────────────
@@ -84,7 +86,8 @@ export class PlatformWatcherService {
   async nightlyTick() {
     if (process.env.AGENT_WATCHER === 'off') return;
     try {
-      const session = await this.generateBriefing();
+      // Jam 22:00 masih ada dua percobaan ulang — jangan kabari gagal dulu.
+      const session = await this.generateBriefing(undefined, { notifyFailure: false });
       this.logger.log(`Laporan malam tersimpan: session ${session.session_id}`);
     } catch (err) {
       this.logger.error(`Laporan malam gagal: ${err instanceof Error ? err.message : err}`);
@@ -121,6 +124,8 @@ export class PlatformWatcherService {
         }
         continue;
       }
+
+      await this.markRecoveredIfWasDown(platform.id, platform.slug);
 
       const overview = payload.overview ?? {};
       const previous = await this.prisma.platformKpiSnapshot.findFirst({
@@ -306,6 +311,12 @@ export class PlatformWatcherService {
             metadata: { source: 'platform_attention', code: item.code, last_seen: new Date().toISOString() },
           },
         });
+        // Kondisi yang memburuk (mis. order tertahan 15 → 45 menit, warning →
+        // critical) layak dikabarkan lagi; yang sekadar bertahan tidak.
+        const rank = { info: 0, warning: 1, critical: 2 } as const;
+        if (rank[severity] > rank[existing.severity as keyof typeof rank]) {
+          await this.notifier.alert(severity, `Memburuk — ${slug}: ${item.title}`, item.message);
+        }
         continue;
       }
 
@@ -321,16 +332,27 @@ export class PlatformWatcherService {
         },
       });
       created += 1;
+      if (severity !== 'info') await this.notifier.alert(severity, `${slug}: ${item.title}`, item.message);
     }
 
-    await this.prisma.automationAlert.updateMany({
+    const cleared = await this.prisma.automationAlert.findMany({
       where: {
         platformId,
         status: 'pending',
         alertType: { startsWith: ATTENTION_PREFIX, notIn: [...activeTypes] },
       },
-      data: { status: 'resolved' },
+      select: { id: true, title: true, severity: true },
     });
+    if (cleared.length > 0) {
+      await this.prisma.automationAlert.updateMany({
+        where: { id: { in: cleared.map((c) => c.id) } },
+        data: { status: 'resolved' },
+      });
+      // Kabari "sudah beres" hanya untuk yang tadinya sempat dikabarkan.
+      for (const c of cleared.filter((x) => x.severity !== 'info')) {
+        await this.notifier.alert('ok', `Selesai — ${c.title}`, 'Kondisi ini sudah tidak dilaporkan platform lagi.');
+      }
+    }
 
     return created;
   }
@@ -341,12 +363,20 @@ export class PlatformWatcherService {
       select: { id: true },
     });
 
+    // Platform mati = SATU kejadian sampai pulih, berapa jam pun lamanya.
+    // Dulu dedup cuma 6 jam, sehingga gangguan NotaBe 11–13 Sep melahirkan 7
+    // alert — kalau tiap alert dikirim ke Telegram, HP kapten dibanjiri.
+    // Alert ini ditutup otomatis oleh markRecoveredIfWasDown().
+    // Jendela 72 jam (bukan "selamanya") supaya alert basi seperti NotaBe
+    // September tidak menelan gangguan BARU, dan gangguan yang berlarut lebih
+    // dari 3 hari tetap diingatkan ulang.
+    const windowHours = anomaly.alertType === 'platform_unreachable' ? 72 : 6;
     const duplicate = await this.prisma.automationAlert.findFirst({
       where: {
         platformId: platform?.id ?? null,
         alertType: anomaly.alertType,
         status: 'pending',
-        createdAt: { gte: new Date(Date.now() - 6 * 3600_000) },
+        createdAt: { gte: new Date(Date.now() - windowHours * 3600_000) },
       },
     });
     if (duplicate) return false;
@@ -362,7 +392,39 @@ export class PlatformWatcherService {
         status: 'pending',
       },
     });
+    await this.notifier.alert(anomaly.severity, anomaly.title, anomaly.message);
     return true;
+  }
+
+  /**
+   * Platform yang tadinya tidak bisa dihubungi kini menjawab lagi → tutup
+   * alert-nya dan kabari kapten berapa lama gangguannya. Sebelumnya alert
+   * platform_unreachable tidak pernah tertutup sendiri.
+   */
+  private async markRecoveredIfWasDown(platformId: string, slug: string): Promise<void> {
+    // Hanya gangguan yang masih segar. Alert lama (mis. NotaBe 11–16 Sep)
+    // sengaja dibiarkan untuk ditinjau kapten — kalau ikut diproses, kapten
+    // akan menerima "kembali normal setelah ±550 jam" yang menyesatkan.
+    const down = await this.prisma.automationAlert.findMany({
+      where: {
+        platformId,
+        alertType: 'platform_unreachable',
+        status: 'pending',
+        createdAt: { gte: new Date(Date.now() - 72 * 3600_000) },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, createdAt: true },
+    });
+    if (down.length === 0) return;
+
+    await this.prisma.automationAlert.updateMany({
+      where: { id: { in: down.map((d) => d.id) } },
+      data: { status: 'resolved' },
+    });
+
+    const hours = (Date.now() - down[0].createdAt.getTime()) / 3600_000;
+    const duration = hours < 1 ? `${Math.max(1, Math.round(hours * 60))} menit` : `${hours.toFixed(1).replace('.', ',')} jam`;
+    await this.notifier.alert('ok', `${slug}: kembali normal`, `KPI bisa diambil lagi. Gangguan berlangsung sekitar ${duration}.`);
   }
 
   // ── Laporan malam (AI) ────────────────────────────────────────
@@ -383,8 +445,16 @@ export class PlatformWatcherService {
     });
     if (!failed) return;
 
+    // Kabarkan kegagalan ke Telegram hanya di percobaan TERAKHIR (23:30).
+    // Kalau 22:30 masih gagal tapi 23:30 berhasil, kapten cukup menerima
+    // laporannya — tidak perlu tiga pesan "gagal" sebelumnya.
+    const hourWib = Number(
+      new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hour12: false }).format(new Date()),
+    );
+    const isLastAttempt = hourWib >= 23;
+
     try {
-      const result = await this.generateBriefing(failed.id);
+      const result = await this.generateBriefing(failed.id, { notifyFailure: isLastAttempt });
       this.logger.log(
         `Ulang laporan malam: ${result.failed ? 'masih gagal' : 'berhasil'} (session ${result.session_id})`,
       );
@@ -393,7 +463,13 @@ export class PlatformWatcherService {
     }
   }
 
-  async generateBriefing(retrySessionId?: string) {
+  /**
+   * @param notifyFailure kirim kabar gagal ke Telegram. Default `true` untuk
+   *   pemanggilan manual; cron 22:00 & 22:30 mematikannya karena masih ada
+   *   percobaan berikutnya.
+   */
+  async generateBriefing(retrySessionId?: string, opts: { notifyFailure?: boolean } = {}) {
+    const notifyFailure = opts.notifyFailure ?? true;
     const ceo = await this.prisma.executive.findUnique({ where: { roleCode: 'CEO' } });
     if (!ceo) throw new Error("Executive 'CEO' belum di-seed.");
 
@@ -465,6 +541,9 @@ export class PlatformWatcherService {
       });
 
       this.logger.warn(`Laporan malam gagal disusun: ${reason}`);
+      if (notifyFailure) {
+        await this.notifier.alert('warning', `${session.title ?? BRIEFING_TITLE} gagal disusun`, reason);
+      }
       return {
         session_id: session.id,
         title: session.title,
@@ -493,6 +572,8 @@ export class PlatformWatcherService {
       where: { id: session.id },
       data: { status: 'completed', endedAt: new Date(), summary: run.text.slice(0, 1000) },
     });
+
+    await this.notifier.report(session.title ?? BRIEFING_TITLE, run.text);
 
     return {
       session_id: session.id,
