@@ -14,7 +14,9 @@ export class PlatformKpiService {
 
   async fetchKpi(slug: string, period: 'today' | 'week' | 'month' = 'today') {
     const platform = await this.prisma.platform.findUnique({ where: { slug } });
-    if (!platform) return null;
+    // Platform terarsip tidak dihubungi sama sekali — backend-nya memang sudah
+    // dimatikan, jadi memanggilnya cuma menghasilkan timeout dan alert sampah.
+    if (!platform || platform.readinessStatus === 'archived') return null;
 
     const connection = await this.prisma.platformConnection.findFirst({
       where: { platformId: platform.id, connectionStatus: 'connected' },
@@ -59,6 +61,7 @@ export class PlatformKpiService {
     // Coba semua platform terdaftar — fetchKpi balikin null kalau belum ada
     // koneksi connected maupun env var, jadi tidak perlu daftar hardcode.
     const platforms = await this.prisma.platform.findMany({
+      where: { readinessStatus: { not: 'archived' } },
       select: { slug: true },
       orderBy: { sortOrder: 'asc' },
     });

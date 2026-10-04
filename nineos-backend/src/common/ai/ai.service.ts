@@ -78,7 +78,13 @@ export class AIService {
     const provider = this.activeProvider;
 
     if (provider === 'gemini') return this.runAgentGemini(opts);
-    if (provider === 'anthropic') return this.runAgentAnthropic(opts);
+    if (provider === 'anthropic') {
+      try {
+        return await this.runAgentAnthropic(opts);
+      } catch (err) {
+        throw this.providerFailure(err);
+      }
+    }
 
     return {
       text: this.noKeyMessage(),
@@ -146,12 +152,52 @@ export class AIService {
 
   // ── Agentic loop: Gemini function calling ─────────────────────
 
+  /**
+   * Jalankan agent Gemini dengan rantai model cadangan.
+   *
+   * Terbukti di produksi: tiap 07:00 WIB (00:00 UTC) gemini-2.5-flash membalas
+   * 503 "model is currently experiencing high demand" tujuh hari berturut-turut,
+   * sehingga semua briefing pagi gagal. Kalau model utama sesak, pindah ke
+   * model berikutnya alih-alih menyerah.
+   *
+   * Pindah model HANYA dilakukan kalau belum ada tool yang sempat dijalankan.
+   * Kalau kegagalan terjadi di tengah loop, mengulang dari awal berarti tool
+   * tulis (mis. create_alert) bisa tereksekusi dua kali — lebih baik gagal jujur.
+   */
   private async runAgentGemini(opts: AgentRunOptions): Promise<AgentRunResult> {
+    const models = this.geminiModelChain(opts.preferredModel);
+    let lastError: unknown;
+
+    for (const [index, modelName] of models.entries()) {
+      const trace: AgentToolTrace[] = [];
+      try {
+        const result = await this.runAgentGeminiWithModel(opts, modelName, trace);
+        if (index > 0) {
+          this.logger.warn(`Agent memakai model cadangan '${modelName}' karena model utama sesak`);
+        }
+        return result;
+      } catch (err) {
+        lastError = err;
+        const canFallBack = this.isTransient(err) && trace.length === 0;
+        if (!canFallBack || index === models.length - 1) break;
+        this.logger.warn(
+          `Model '${modelName}' gagal (${this.statusOf(err)}), coba model cadangan '${models[index + 1]}'`,
+        );
+      }
+    }
+
+    throw this.providerFailure(lastError);
+  }
+
+  private async runAgentGeminiWithModel(
+    opts: AgentRunOptions,
+    modelName: string,
+    trace: AgentToolTrace[],
+  ): Promise<AgentRunResult> {
     const maxIterations = opts.maxIterations ?? 6;
-    const trace: AgentToolTrace[] = [];
 
     const model = this.gemini!.getGenerativeModel({
-      model: this.resolveGeminiModel(opts.preferredModel),
+      model: modelName,
       systemInstruction: opts.systemPrompt,
       tools: [
         {
@@ -209,8 +255,22 @@ export class AIService {
       text: this.safeGeminiText(result.response),
       tool_calls: trace,
       iterations,
-      provider: 'gemini',
+      provider: `gemini:${modelName}`,
     };
+  }
+
+  /**
+   * Model utama + cadangan. Cadangan memakai alias `-latest` karena nama versi
+   * spesifik bisa pensiun diam-diam — terbukti gemini-2.0-flash sudah 404.
+   * Bisa diganti tanpa deploy lewat env GEMINI_FALLBACK_MODELS (pisah koma).
+   */
+  private geminiModelChain(preferred?: string): string[] {
+    const primary = this.resolveGeminiModel(preferred);
+    const fallbacks = (process.env.GEMINI_FALLBACK_MODELS ?? 'gemini-flash-latest,gemini-flash-lite-latest')
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean);
+    return [primary, ...fallbacks.filter((m) => m !== primary)];
   }
 
   // ── Agentic loop: Anthropic tool use ──────────────────────────
@@ -291,31 +351,54 @@ export class AIService {
    * ulangi. Kalau kuota tetap habis, lempar 503 dengan pesan yang bisa dibaca
    * kapten, bukan "Internal server error".
    */
+  /**
+   * Ulangi panggilan provider saat gangguannya sementara. Error ASLI provider
+   * dilempar ulang apa adanya (tidak dibungkus) supaya pemanggil masih bisa
+   * memutuskan pindah ke model cadangan berdasarkan status-nya.
+   */
   private async withQuotaRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
     for (let attempt = 1; ; attempt += 1) {
       try {
         return await fn();
       } catch (err) {
-        if (!this.isRateLimit(err) || attempt >= maxAttempts) {
-          if (this.isRateLimit(err)) {
-            throw new ServiceUnavailableException(
-              `Kuota AI provider (${this.activeProvider}) habis. Gemini free tier dibatasi 5 request/menit, sementara satu giliran agentic butuh beberapa request. Tunggu sebentar, aktifkan billing Google, atau isi ANTHROPIC_API_KEY sebagai fallback.`,
-            );
-          }
-          throw err;
-        }
+        if (!this.isTransient(err) || attempt >= maxAttempts) throw err;
         const waitMs = this.retryDelayMs(err);
         this.logger.warn(
-          `Kena rate limit provider, tunggu ${Math.round(waitMs / 1000)} dtk (percobaan ${attempt}/${maxAttempts})`,
+          `Provider AI sedang ${this.statusOf(err) === 429 ? 'membatasi kuota' : 'sesak'} (${this.statusOf(err)}), tunggu ${Math.round(waitMs / 1000)} dtk (percobaan ${attempt}/${maxAttempts})`,
         );
         await new Promise((resolve) => setTimeout(resolve, waitMs));
       }
     }
   }
 
-  private isRateLimit(err: unknown): boolean {
-    const status = (err as { status?: number })?.status;
-    return status === 429;
+  /**
+   * Gangguan yang layak diulang. 503 WAJIB masuk — versi lama hanya mengenali
+   * 429, sehingga 503 "high demand" langsung dianggap gagal permanen dan
+   * membunuh 28 briefing pagi berturut-turut.
+   */
+  private isTransient(err: unknown): boolean {
+    const status = this.statusOf(err);
+    return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  }
+
+  private statusOf(err: unknown): number | undefined {
+    return (err as { status?: number })?.status;
+  }
+
+  /** Ubah error provider jadi pesan 503 yang bisa dibaca kapten, sesuai sebabnya. */
+  private providerFailure(err: unknown): Error {
+    const status = this.statusOf(err);
+    if (status === 429) {
+      return new ServiceUnavailableException(
+        `Kuota AI provider (${this.activeProvider}) habis untuk hari ini. Gemini free tier dibatasi 20 request per hari. Isi ANTHROPIC_API_KEY atau aktifkan billing Google untuk menghilangkannya.`,
+      );
+    }
+    if (this.isTransient(err)) {
+      return new ServiceUnavailableException(
+        `Semua model AI (${this.activeProvider}) sedang sesak dan sudah dicoba berulang. Ini gangguan sementara di sisi provider — coba lagi beberapa menit lagi.`,
+      );
+    }
+    return err instanceof Error ? err : new Error(String(err));
   }
 
   /** Provider mengirim `retryDelay: '42s'` — hormati, tapi jangan sampai request menggantung terlalu lama. */

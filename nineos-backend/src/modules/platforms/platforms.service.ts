@@ -12,6 +12,9 @@ export class PlatformsService {
 
   async findAll() {
     const platforms = await this.prisma.platform.findMany({
+      // Platform berstatus 'archived' (mis. Matcha, Supabase-nya di-pause)
+      // disembunyikan dari dashboard tapi datanya tetap utuh di database.
+      where: { readinessStatus: { not: 'archived' } },
       orderBy: { sortOrder: 'asc' },
       include: {
         connections: {

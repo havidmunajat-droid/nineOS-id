@@ -5,7 +5,7 @@ import { AgentToolsService } from './agent-tools.service';
 import { AgentRunnerService } from './agent-runner.service';
 
 // Lapisan agentic: registry tool + loop eksekusi + antrian approval.
-// PlatformsModule diimpor demi PlatformKpiService (jembatan ke Matcha/NotaBe).
+// PlatformsModule diimpor demi PlatformKpiService (jembatan ke NotaBe/Krama).
 @Module({
   imports: [PlatformsModule],
   controllers: [AgentController],

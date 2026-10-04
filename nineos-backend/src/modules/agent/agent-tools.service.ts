@@ -12,6 +12,10 @@ type Period = 'today' | 'week' | 'month';
 
 const PERIODS: string[] = ['today', 'week', 'month'];
 
+// Platform yang boleh disebut agent. Matcha diarsipkan 4 Okt 2026 (Supabase
+// di-pause) — tetap di database, tapi tidak lagi ditawarkan ke model.
+const LIVE_PLATFORM_SLUGS: string[] = ['notabe', 'krama', 'nineclip'];
+
 /**
  * Registry tool yang boleh dipanggil AI executive.
  *
@@ -39,7 +43,7 @@ export class AgentToolsService {
     {
       name: 'get_platform_kpi',
       description:
-        'Ambil KPI LIVE terbaru langsung dari backend platform. Matcha = talent/rekrutmen (kandidat, recruiter, lowongan, screening, payment). NotaBe = kasir laundry (GMV, order, omzet, piutang, toko, pelanggan). Pakai ini setiap kali ditanya angka terkini sebuah platform.',
+        'Ambil KPI LIVE terbaru langsung dari backend platform. NotaBe = kasir laundry (GMV, order, omzet, piutang, toko, pelanggan). Krama = super-app jasa lokal (order, GMV, driver online, merchant buka, Sayur.ai). Pakai ini setiap kali ditanya angka terkini sebuah platform.',
       risk: 'read',
       parameters: {
         type: 'object',
@@ -47,7 +51,7 @@ export class AgentToolsService {
           platform: {
             type: 'string',
             description: 'Slug platform',
-            enum: ['matcha', 'notabe', 'krama', 'nineclip'],
+            enum: LIVE_PLATFORM_SLUGS,
           },
           period: {
             type: 'string',
@@ -85,7 +89,7 @@ export class AgentToolsService {
           platform: {
             type: 'string',
             description: 'Slug platform',
-            enum: ['matcha', 'notabe', 'krama', 'nineclip'],
+            enum: LIVE_PLATFORM_SLUGS,
           },
         },
         required: ['platform'],
@@ -102,7 +106,7 @@ export class AgentToolsService {
           platform: {
             type: 'string',
             description: 'Slug platform',
-            enum: ['matcha', 'notabe', 'krama', 'nineclip'],
+            enum: LIVE_PLATFORM_SLUGS,
           },
           hours: {
             type: 'integer',
@@ -223,7 +227,7 @@ export class AgentToolsService {
           platform: {
             type: 'string',
             description: 'Slug platform pemilik konten',
-            enum: ['matcha', 'notabe', 'krama', 'nineclip'],
+            enum: LIVE_PLATFORM_SLUGS,
           },
           title: { type: 'string', description: 'Judul internal draft' },
           caption: { type: 'string', description: 'Isi caption siap posting' },
@@ -279,7 +283,7 @@ export class AgentToolsService {
           status: {
             type: 'string',
             description: 'Status kesiapan baru',
-            enum: ['ready', 'partial', 'not_ready'],
+            enum: ['ready', 'partial', 'not_ready', 'archived'],
           },
         },
         required: ['platform', 'status'],
@@ -471,6 +475,7 @@ export class AgentToolsService {
   private async getAllPlatformsKpi(period: Period) {
     const results = await this.kpi.fetchAllKpi(period);
     const platforms = await this.prisma.platform.findMany({
+      where: { readinessStatus: { not: 'archived' } },
       select: { slug: true, readinessStatus: true },
       orderBy: { sortOrder: 'asc' },
     });
@@ -537,7 +542,7 @@ export class AgentToolsService {
 
   private async getPlatformHealth(slug?: string) {
     const platforms = await this.prisma.platform.findMany({
-      where: slug ? { slug } : undefined,
+      where: slug ? { slug } : { readinessStatus: { not: 'archived' } },
       orderBy: { sortOrder: 'asc' },
       include: {
         connections: {
@@ -566,7 +571,7 @@ export class AgentToolsService {
 
     // Ambil sumber kredensial sebenarnya (tabel koneksi ATAU env var), lalu
     // buktikan hidup-matinya dengan satu panggilan KPI nyata. Status koneksi
-    // di database saja tidak cukup — Matcha & NotaBe dicolok lewat env.
+    // di database saja tidak cukup — NotaBe dicolok lewat env.
     const probes = await Promise.all(
       platforms.map(async (p) => ({
         slug: p.slug,

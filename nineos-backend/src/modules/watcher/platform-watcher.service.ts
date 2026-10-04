@@ -75,6 +75,7 @@ export class PlatformWatcherService {
 
   async captureAndDetect() {
     const platforms = await this.prisma.platform.findMany({
+      where: { readinessStatus: { not: 'archived' } },
       select: { id: true, slug: true, readinessStatus: true },
       orderBy: { sortOrder: 'asc' },
     });
@@ -273,19 +274,60 @@ export class PlatformWatcherService {
 
   // ── Briefing pagi (AI) ────────────────────────────────────────
 
-  async generateBriefing() {
+  /**
+   * Coba ulang briefing yang gagal pagi ini, di sesi yang SAMA (tidak membuat
+   * sesi baru, jadi dashboard tidak dipenuhi duplikat). Jam 07:00 WIB adalah
+   * 00:00 UTC — jam sibuk global provider AI — jadi 30–90 menit kemudian
+   * peluang berhasilnya jauh lebih besar.
+   */
+  @Cron('30 7,8 * * *', { name: 'morning-briefing-retry', timeZone: TZ })
+  async retryFailedBriefing() {
+    if (process.env.AGENT_WATCHER === 'off') return;
+    const title = `Briefing Pagi — ${this.jakartaDateLabel(new Date())}`;
+    const failed = await this.prisma.executiveSession.findFirst({
+      where: { title, status: 'failed' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!failed) return;
+
+    try {
+      const result = await this.generateBriefing(failed.id);
+      this.logger.log(
+        `Ulang briefing pagi: ${result.failed ? 'masih gagal' : 'berhasil'} (session ${result.session_id})`,
+      );
+    } catch (err) {
+      this.logger.error(`Ulang briefing pagi gagal: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  async generateBriefing(retrySessionId?: string) {
     const ceo = await this.prisma.executive.findUnique({ where: { roleCode: 'CEO' } });
     if (!ceo) throw new Error("Executive 'CEO' belum di-seed.");
 
-    const session = await this.prisma.executiveSession.create({
-      data: {
-        mode: 'meeting',
-        title: `Briefing Pagi — ${this.jakartaDateLabel(new Date())}`,
-        participantExecutiveIds: [ceo.id],
-        status: 'active',
-        startedAt: new Date(),
-      },
-    });
+    if (retrySessionId) {
+      // Buang pesan kegagalan sebelumnya; instruksi founder dipakai ulang.
+      await this.prisma.executiveMessage.deleteMany({
+        where: { sessionId: retrySessionId, senderType: 'executive' },
+      });
+      await this.prisma.executiveMessage.deleteMany({
+        where: { sessionId: retrySessionId, senderType: 'founder' },
+      });
+    }
+
+    const session = retrySessionId
+      ? await this.prisma.executiveSession.update({
+          where: { id: retrySessionId },
+          data: { status: 'active', endedAt: null, summary: null },
+        })
+      : await this.prisma.executiveSession.create({
+          data: {
+            mode: 'meeting',
+            title: `Briefing Pagi — ${this.jakartaDateLabel(new Date())}`,
+            participantExecutiveIds: [ceo.id],
+            status: 'active',
+            startedAt: new Date(),
+          },
+        });
 
     const instruction = [
       'Susun briefing pagi untuk kapten.',
@@ -311,7 +353,7 @@ export class PlatformWatcherService {
       run = await this.runBriefingAgent(ceo, instruction, session.id);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      const notice = `Briefing pagi tidak bisa disusun.\n\nSebab: ${reason}\n\nWatcher tetap merekam KPI tiap jam, jadi tidak ada data yang hilang. Buka Virtual Office dan tanya CEO langsung kalau kuota sudah pulih.`;
+      const notice = `Briefing pagi tidak bisa disusun.\n\nSebab: ${reason}\n\nNineOS akan mencoba ulang otomatis pukul 07:30 dan 08:30 WIB. Watcher tetap merekam KPI tiap jam, jadi tidak ada data yang hilang.`;
 
       await this.prisma.executiveMessage.create({
         data: {
@@ -324,7 +366,9 @@ export class PlatformWatcherService {
       });
       await this.prisma.executiveSession.update({
         where: { id: session.id },
-        data: { status: 'completed', endedAt: new Date(), summary: notice.slice(0, 1000) },
+        // 'failed', bukan 'completed' — supaya retryFailedBriefing() bisa
+        // menemukannya, dan dashboard bisa membedakan briefing kosong dari jadi.
+        data: { status: 'failed', endedAt: new Date(), summary: notice.slice(0, 1000) },
       });
 
       this.logger.warn(`Briefing pagi gagal disusun: ${reason}`);

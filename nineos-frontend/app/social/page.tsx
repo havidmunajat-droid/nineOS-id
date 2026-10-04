@@ -32,7 +32,6 @@ const tabToStatus: Record<string, string | null> = {
 };
 
 const PLATFORMS = [
-  { slug: 'matcha', label: 'Matcha' },
   { slug: 'notabe', label: 'NotaBe' },
   { slug: 'krama', label: 'Krama' },
   { slug: 'nine-studio', label: 'Nine Studio' },

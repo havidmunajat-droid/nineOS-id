@@ -27,12 +27,15 @@ export default function HelpdeskPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  const PLATFORMS = ['matcha', 'notabe'];
+  const PLATFORMS = [
+    { slug: 'notabe', name: 'NotaBe' },
+    { slug: 'krama', name: 'Krama' },
+  ];
 
   useEffect(() => {
-    Promise.all(PLATFORMS.map(slug =>
+    Promise.all(PLATFORMS.map(({ slug, name }) =>
       api.get(`/platforms/${slug}/helpdesk/conversations`)
-        .then(r => (r.data.data ?? []).map((c: Conversation) => ({ ...c, platform: { slug, name: slug === 'matcha' ? 'Matcha' : 'NotaBe' } })))
+        .then(r => (r.data.data ?? []).map((c: Conversation) => ({ ...c, platform: { slug, name } })))
         .catch(() => [])
     )).then(results => {
       const all = results.flat().sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());

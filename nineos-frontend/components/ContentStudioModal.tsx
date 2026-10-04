@@ -11,7 +11,7 @@ interface Props {
 const CHANNELS = ['instagram', 'facebook', 'tiktok', 'linkedin'];
 
 export default function ContentStudioModal({ platforms, onClose, onPublished }: Props) {
-  const [slug, setSlug] = useState(platforms[0]?.slug ?? 'matcha');
+  const [slug, setSlug] = useState(platforms[0]?.slug ?? 'notabe');
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
   const [prompt, setPrompt] = useState('');
 
@@ -165,7 +165,7 @@ export default function ContentStudioModal({ platforms, onClose, onPublished }: 
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
               rows={3}
-              placeholder="Brief konten… contoh: promo diskon 20% matcha latte akhir pekan, tone ceria"
+              placeholder="Brief konten… contoh: promo cuci kilat 20% akhir pekan, tone ceria"
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none resize-none placeholder:text-[var(--text-muted)]"
             />
             <button onClick={handleGenerate} disabled={busy || !prompt.trim()}

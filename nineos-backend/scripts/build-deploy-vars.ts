@@ -70,8 +70,7 @@ const railway = [
   'AGENT_AUTONOMY=guarded',
   'AGENT_WATCHER=on',
   '',
-  `MATCHA_API_URL=${need('MATCHA_API_URL', env, '.env')}`,
-  `MATCHA_NINEOS_KEY=${need('MATCHA_NINEOS_KEY', env, '.env')}`,
+  '# Matcha diarsipkan 4 Okt 2026 — MATCHA_* tidak lagi dibutuhkan.',
   `NOTABE_API_URL=${need('NOTABE_API_URL', env, '.env')}`,
   `NOTABE_NINEOS_KEY=${need('NOTABE_NINEOS_KEY', env, '.env')}`,
   '',
@@ -79,8 +78,9 @@ const railway = [
   '# sudah muncul. Dipakai media-gen untuk menyusun URL file publik.',
   '# PUBLIC_BASE_URL=https://<url-railway>',
   '',
-  '# Krama & nineClip sengaja TIDAK diisi — masih lokal. Readiness keduanya',
-  '# sudah diturunkan ke not_ready, jadi watcher tidak membuat alert palsu.',
+  '# Krama TIDAK butuh env: koneksinya disimpan di tabel platform_connections',
+  '# (URL produksi + key terenkripsi), dan baris itu diutamakan di atas env.',
+  '# Lihat scripts/platform-lineup-2026-10.ts.',
   '',
 ];
 

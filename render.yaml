@@ -38,11 +38,7 @@ services:
       - key: AGENT_WATCHER
         value: "on"
 
-      # ── Platform live: Matcha + NotaBe ───────────────────────
-      - key: MATCHA_API_URL
-        sync: false
-      - key: MATCHA_NINEOS_KEY
-        sync: false
+      # ── Platform live: NotaBe (via env) + Krama (via tabel koneksi) ──
       - key: NOTABE_API_URL
         sync: false
       - key: NOTABE_NINEOS_KEY
