@@ -193,6 +193,11 @@ export class AutomationService {
       where: {
         ...(status && { status }),
         ...(platformId && { platformId }),
+        // Alert milik platform terarsip ikut disembunyikan dari dashboard.
+        // Alert lintas-platform (platformId null) tetap tampil.
+        ...(!platformId && {
+          OR: [{ platformId: null }, { platform: { readinessStatus: { not: 'archived' } } }],
+        }),
       },
       orderBy: { createdAt: 'desc' },
       take: 100,

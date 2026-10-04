@@ -34,12 +34,35 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
-  // ── 1. Arsipkan Matcha ───────────────────────────────────────
-  const matcha = await prisma.platform.update({
-    where: { slug: 'matcha' },
-    data: { readinessStatus: 'archived' },
-  });
-  console.log(`  ✓ matcha  → ${matcha.readinessStatus}`);
+  // ── 1. Susunan platform ──────────────────────────────────────
+  // Live: NotaBe, Krama. Dibangun (off): TakesOver, Juan, Ruma.
+  // Diarsipkan: Matcha, nineClip, Nine Studio — data historis tetap ada.
+  const LINEUP = [
+    { slug: 'notabe', name: 'NotaBe', readinessStatus: 'ready', sortOrder: 1 },
+    { slug: 'krama', name: 'Krama', readinessStatus: 'ready', sortOrder: 2 },
+    { slug: 'takesover', name: 'TakesOver', readinessStatus: 'not_ready', sortOrder: 3, description: 'Dalam pembangunan' },
+    { slug: 'juan', name: 'Juan', readinessStatus: 'not_ready', sortOrder: 4, description: 'Dalam pembangunan' },
+    { slug: 'ruma', name: 'Ruma', readinessStatus: 'not_ready', sortOrder: 5, description: 'Dalam pembangunan' },
+    { slug: 'matcha', name: 'Matcha', readinessStatus: 'archived', sortOrder: 90 },
+    { slug: 'nineclip', name: 'nineClip', readinessStatus: 'archived', sortOrder: 91 },
+    { slug: 'nine-studio', name: 'Nine Studio', readinessStatus: 'archived', sortOrder: 92 },
+  ];
+  for (const p of LINEUP) {
+    await prisma.platform.upsert({
+      where: { slug: p.slug },
+      // name/description platform lama tidak ditimpa — cuma status & urutan.
+      update: { readinessStatus: p.readinessStatus, sortOrder: p.sortOrder },
+      create: {
+        slug: p.slug,
+        name: p.name,
+        description: p.description ?? null,
+        readinessStatus: p.readinessStatus,
+        sortOrder: p.sortOrder,
+      },
+    });
+    console.log(`  ✓ ${p.slug.padEnd(12)} → ${p.readinessStatus}`);
+  }
+  const matcha = await prisma.platform.findUniqueOrThrow({ where: { slug: 'matcha' } });
 
   // ── 2. Sambungkan Krama produksi ─────────────────────────────
   const kramaKey = process.env.KRAMA_NINEOS_KEY;

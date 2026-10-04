@@ -34,7 +34,6 @@ const tabToStatus: Record<string, string | null> = {
 const PLATFORMS = [
   { slug: 'notabe', label: 'NotaBe' },
   { slug: 'krama', label: 'Krama' },
-  { slug: 'nine-studio', label: 'Nine Studio' },
 ];
 
 export default function SocialPage() {

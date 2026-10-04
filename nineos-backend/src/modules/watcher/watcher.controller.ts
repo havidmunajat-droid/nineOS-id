@@ -79,7 +79,7 @@ export class WatcherController {
     return {
       enabled: process.env.AGENT_WATCHER !== 'off',
       autonomy: process.env.AGENT_AUTONOMY === 'full' ? 'full' : 'guarded',
-      schedule: { snapshot: 'tiap jam', briefing: '07:00 WIB' },
+      schedule: { snapshot: 'tiap jam', briefing: '22:00 WIB (ulang otomatis 22:30 & 23:30 bila gagal)' },
       snapshot_count: snapshotCount,
       last_snapshot: latest
         ? { platform: latest.platformSlug, at: latest.capturedAt.toISOString() }

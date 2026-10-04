@@ -12,9 +12,10 @@ type Period = 'today' | 'week' | 'month';
 
 const PERIODS: string[] = ['today', 'week', 'month'];
 
-// Platform yang boleh disebut agent. Matcha diarsipkan 4 Okt 2026 (Supabase
-// di-pause) — tetap di database, tapi tidak lagi ditawarkan ke model.
-const LIVE_PLATFORM_SLUGS: string[] = ['notabe', 'krama', 'nineclip'];
+// Platform yang boleh ditanyakan agent — hanya yang live. Matcha, nineClip,
+// dan Nine Studio diarsipkan; TakesOver, Juan, Ruma masih dibangun (belum
+// punya endpoint KPI). Tambahkan slug di sini begitu platform-nya live.
+const LIVE_PLATFORM_SLUGS: string[] = ['notabe', 'krama'];
 
 /**
  * Registry tool yang boleh dipanggil AI executive.

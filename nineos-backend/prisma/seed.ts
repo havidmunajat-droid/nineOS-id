@@ -10,11 +10,18 @@ async function main() {
   // ── Platforms ──────────────────────────────────────
   console.log('Seeding platforms...');
   const platforms = [
-    { slug: 'matcha', name: 'Matcha', description: 'Talent Intelligence Platform (matchascore.com)', readinessStatus: 'ready', isPriority: true, sortOrder: 1 },
-    { slug: 'notabe', name: 'NotaBe', description: 'Aplikasi kasir laundry NotaBe', readinessStatus: 'ready', isPriority: true, sortOrder: 2 },
-    { slug: 'krama', name: 'Krama', description: 'Super-app jasa lokal AI Krama', readinessStatus: 'ready', isPriority: true, sortOrder: 3 },
-    { slug: 'nineclip', name: 'nineClip', description: 'AI auto-clipping SaaS nineClip', readinessStatus: 'ready', isPriority: true, sortOrder: 4 },
-    { slug: 'nine-studio', name: 'Nine Studio', description: 'Platform Nine Studio (belum ready)', readinessStatus: 'not_ready', isPriority: false, sortOrder: 5 },
+    // Susunan per 4 Okt 2026. upsert di bawah MENIMPA readiness, jadi daftar ini
+    // harus selalu cocok dengan produksi — kalau tidak, menjalankan seed akan
+    // menghidupkan kembali platform yang sudah diarsipkan.
+    { slug: 'notabe', name: 'NotaBe', description: 'Aplikasi kasir laundry NotaBe', readinessStatus: 'ready', isPriority: true, sortOrder: 1 },
+    { slug: 'krama', name: 'Krama', description: 'Super-app jasa lokal AI Krama', readinessStatus: 'ready', isPriority: true, sortOrder: 2 },
+    { slug: 'takesover', name: 'TakesOver', description: 'Dalam pembangunan', readinessStatus: 'not_ready', isPriority: false, sortOrder: 3 },
+    { slug: 'juan', name: 'Juan', description: 'Dalam pembangunan', readinessStatus: 'not_ready', isPriority: false, sortOrder: 4 },
+    { slug: 'ruma', name: 'Ruma', description: 'Dalam pembangunan', readinessStatus: 'not_ready', isPriority: false, sortOrder: 5 },
+    // Diarsipkan — disembunyikan dari dashboard, data historis tetap ada.
+    { slug: 'matcha', name: 'Matcha', description: 'Talent Intelligence Platform (diarsipkan)', readinessStatus: 'archived', isPriority: false, sortOrder: 90 },
+    { slug: 'nineclip', name: 'nineClip', description: 'AI auto-clipping SaaS (diarsipkan)', readinessStatus: 'archived', isPriority: false, sortOrder: 91 },
+    { slug: 'nine-studio', name: 'Nine Studio', description: 'Platform Nine Studio (diarsipkan)', readinessStatus: 'archived', isPriority: false, sortOrder: 92 },
   ];
 
   const platformRecords: Record<string, string> = {};

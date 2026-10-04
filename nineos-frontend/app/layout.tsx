@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
   title: 'NineOS — Central Dashboard',
-  description: 'Operational dashboard untuk NotaBe, Krama, nineClip & Nine Studio',
+  description: 'Operational dashboard untuk NotaBe & Krama',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

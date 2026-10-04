@@ -3,11 +3,12 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
 const platforms = [
-  // Matcha diarsipkan 4 Okt 2026 (Supabase di-pause) — tidak lagi ditampilkan.
+  // Susunan per 4 Okt 2026. Matcha, nineClip, Nine Studio diarsipkan.
   { slug: 'notabe', label: 'NotaBe', ready: true },
   { slug: 'krama', label: 'Krama', ready: true },
-  { slug: 'nineclip', label: 'nineClip', ready: false },
-  { slug: 'nine-studio', label: 'Nine Studio', ready: false },
+  { slug: 'takesover', label: 'TakesOver', ready: false },
+  { slug: 'juan', label: 'Juan', ready: false },
+  { slug: 'ruma', label: 'Ruma', ready: false },
 ];
 
 const modules = [

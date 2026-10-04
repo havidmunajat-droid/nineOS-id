@@ -53,6 +53,9 @@ const severityDot: Record<string, string> = {
 export default function DashboardPage() {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  // Dihitung dari data penuh, BUKAN dari 6 alert yang ditampilkan di feed —
+  // dulu keduanya tercampur sehingga 'Alert Pending' bisa 0 padahal ada.
+  const [alertStats, setAlertStats] = useState({ pending: 0, total: 0 });
   const [kpis, setKpis] = useState<Record<string, PlatformKpi>>({});
   const [kpiLoading, setKpiLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -61,7 +64,12 @@ export default function DashboardPage() {
     Promise.all([
       api.get('/platforms').then(r => (Array.isArray(r.data) ? r.data : r.data.data ?? [])),
       api.get('/automation/alerts').then(r => r.data.data ?? []),
-    ]).then(([p, a]) => { setPlatforms(p); setAlerts(a.slice(0, 6)); })
+      api.get('/automation/alerts', { params: { status: 'pending' } }).then(r => r.data.data ?? []),
+    ]).then(([p, a, pending]) => {
+      setPlatforms(p);
+      setAlerts(a.slice(0, 6));
+      setAlertStats({ pending: pending.length, total: a.length });
+    })
       .catch(() => {})
       .finally(() => setLoading(false));
 
@@ -122,8 +130,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: 'Platform Aktif', value: platforms.filter(p => p.readiness_status === 'ready').length, sub: `dari ${platforms.length || '—'} platform` },
-          { label: 'Alert Pending', value: alerts.filter(a => a.status === 'pending').length, sub: 'menunggu dikirim' },
-          { label: 'Total Alert', value: alerts.length, sub: 'tercatat' },
+          { label: 'Alert Pending', value: alertStats.pending, sub: 'menunggu ditinjau' },
+          { label: 'Total Alert', value: alertStats.total >= 100 ? '100+' : alertStats.total, sub: 'tercatat' },
         ].map(s => (
           <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
             <p className="text-[12px] text-[var(--text-muted)]">{s.label}</p>

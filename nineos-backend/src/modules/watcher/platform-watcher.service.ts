@@ -7,6 +7,9 @@ import { AgentRunResult } from '../../common/agent/agent.types';
 
 const TZ = 'Asia/Jakarta';
 
+/** Sebelum 4 Okt 2026 bernama 'Briefing Pagi' (07:00 WIB). */
+const BRIEFING_TITLE = 'Laporan Malam';
+
 /** Bentuk minimum payload KPI yang disepakati semua platform. */
 interface KpiPayload {
   overview?: {
@@ -32,7 +35,7 @@ export interface Anomaly {
  * - Tiap jam: rekam snapshot KPI semua platform, lalu jalankan deteksi anomali.
  *   Deteksi sengaja DETERMINISTIK (bukan AI) supaya murah, konsisten, dan tidak
  *   pernah berhalusinasi soal angka. AI dipakai untuk menafsirkan, bukan mendeteksi.
- * - Tiap pagi 07:00 WIB: CEO agent menyusun briefing dan menyimpannya sebagai
+ * - Tiap malam 22:00 WIB: CEO agent menyusun laporan harian dan menyimpannya sebagai
  *   sesi Virtual Office, jadi kapten tinggal membuka dashboard.
  */
 @Injectable()
@@ -60,14 +63,17 @@ export class PlatformWatcherService {
     }
   }
 
-  @Cron('0 7 * * *', { name: 'morning-briefing', timeZone: TZ })
-  async morningTick() {
+  // 22:00 WIB dipilih kapten (4 Okt 2026). Bonusnya: = 15:00 UTC, jauh dari
+  // 00:00 UTC (07:00 WIB) yang terbukti jam sibuk global Gemini, dan NotaBe
+  // sudah melewati sebagian besar jam ramainya (20:00–23:00 WIB).
+  @Cron('0 22 * * *', { name: 'nightly-briefing', timeZone: TZ })
+  async nightlyTick() {
     if (process.env.AGENT_WATCHER === 'off') return;
     try {
       const session = await this.generateBriefing();
-      this.logger.log(`Briefing pagi tersimpan: session ${session.session_id}`);
+      this.logger.log(`Laporan malam tersimpan: session ${session.session_id}`);
     } catch (err) {
-      this.logger.error(`Briefing pagi gagal: ${err instanceof Error ? err.message : err}`);
+      this.logger.error(`Laporan malam gagal: ${err instanceof Error ? err.message : err}`);
     }
   }
 
@@ -272,18 +278,18 @@ export class PlatformWatcherService {
     return true;
   }
 
-  // ── Briefing pagi (AI) ────────────────────────────────────────
+  // ── Laporan malam (AI) ────────────────────────────────────────
 
   /**
    * Coba ulang briefing yang gagal pagi ini, di sesi yang SAMA (tidak membuat
-   * sesi baru, jadi dashboard tidak dipenuhi duplikat). Jam 07:00 WIB adalah
+   * sesi baru, jadi dashboard tidak dipenuhi duplikat). Gangguan provider AI
    * 00:00 UTC — jam sibuk global provider AI — jadi 30–90 menit kemudian
    * peluang berhasilnya jauh lebih besar.
    */
-  @Cron('30 7,8 * * *', { name: 'morning-briefing-retry', timeZone: TZ })
+  @Cron('30 22,23 * * *', { name: 'nightly-briefing-retry', timeZone: TZ })
   async retryFailedBriefing() {
     if (process.env.AGENT_WATCHER === 'off') return;
-    const title = `Briefing Pagi — ${this.jakartaDateLabel(new Date())}`;
+    const title = `${BRIEFING_TITLE} — ${this.jakartaDateLabel(new Date())}`;
     const failed = await this.prisma.executiveSession.findFirst({
       where: { title, status: 'failed' },
       orderBy: { createdAt: 'desc' },
@@ -293,10 +299,10 @@ export class PlatformWatcherService {
     try {
       const result = await this.generateBriefing(failed.id);
       this.logger.log(
-        `Ulang briefing pagi: ${result.failed ? 'masih gagal' : 'berhasil'} (session ${result.session_id})`,
+        `Ulang laporan malam: ${result.failed ? 'masih gagal' : 'berhasil'} (session ${result.session_id})`,
       );
     } catch (err) {
-      this.logger.error(`Ulang briefing pagi gagal: ${err instanceof Error ? err.message : err}`);
+      this.logger.error(`Ulang laporan malam gagal: ${err instanceof Error ? err.message : err}`);
     }
   }
 
@@ -322,7 +328,7 @@ export class PlatformWatcherService {
       : await this.prisma.executiveSession.create({
           data: {
             mode: 'meeting',
-            title: `Briefing Pagi — ${this.jakartaDateLabel(new Date())}`,
+            title: `${BRIEFING_TITLE} — ${this.jakartaDateLabel(new Date())}`,
             participantExecutiveIds: [ceo.id],
             status: 'active',
             startedAt: new Date(),
@@ -330,13 +336,13 @@ export class PlatformWatcherService {
         });
 
     const instruction = [
-      'Susun briefing pagi untuk kapten.',
+      'Susun laporan malam untuk kapten — rangkuman hari ini.',
       'Wajib: tarik KPI live semua platform, cek alert yang masih pending, dan lihat status kesehatan platform.',
       'Struktur jawaban:',
-      '1. Ringkasan satu paragraf — kondisi bisnis pagi ini.',
+      '1. Ringkasan satu paragraf — kondisi bisnis hari ini.',
       '2. Angka kunci per platform yang datanya tersedia (sebut platform yang datanya TIDAK tersedia beserta dugaan penyebabnya).',
       '3. Hal yang perlu perhatian — kaitkan dengan alert pending kalau ada.',
-      '4. Maksimal 3 rekomendasi tindakan hari ini, urut dari yang paling berdampak.',
+      '4. Maksimal 3 rekomendasi tindakan untuk besok, urut dari yang paling berdampak.',
       'Jangan membuat alert baru kecuali kamu menemukan sesuatu yang benar-benar mendesak dan belum ada di daftar alert.',
     ].join('\n');
 
@@ -353,7 +359,7 @@ export class PlatformWatcherService {
       run = await this.runBriefingAgent(ceo, instruction, session.id);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      const notice = `Briefing pagi tidak bisa disusun.\n\nSebab: ${reason}\n\nNineOS akan mencoba ulang otomatis pukul 07:30 dan 08:30 WIB. Watcher tetap merekam KPI tiap jam, jadi tidak ada data yang hilang.`;
+      const notice = `Laporan malam tidak bisa disusun.\n\nSebab: ${reason}\n\nNineOS akan mencoba ulang otomatis pukul 22:30 dan 23:30 WIB. Watcher tetap merekam KPI tiap jam, jadi tidak ada data yang hilang.`;
 
       await this.prisma.executiveMessage.create({
         data: {
@@ -371,7 +377,7 @@ export class PlatformWatcherService {
         data: { status: 'failed', endedAt: new Date(), summary: notice.slice(0, 1000) },
       });
 
-      this.logger.warn(`Briefing pagi gagal disusun: ${reason}`);
+      this.logger.warn(`Laporan malam gagal disusun: ${reason}`);
       return {
         session_id: session.id,
         title: session.title,
@@ -419,7 +425,7 @@ export class PlatformWatcherService {
     return this.agent.run({
       systemPrompt: `${ceo.systemPrompt}
 
-Kamu CEO NineOS. Ini briefing pagi OTOMATIS — kapten belum tentu sedang membaca, jadi tulis lengkap dan mandiri. Bahasa Indonesia, berbasis angka nyata dari tool. Jangan pernah mengarang angka; kalau data tidak tersedia, katakan dan sebutkan dugaan penyebabnya. Format rupiah dengan pemisah ribuan.`,
+Kamu CEO NineOS. Ini laporan malam OTOMATIS — kapten belum tentu sedang membaca, jadi tulis lengkap dan mandiri. Bahasa Indonesia, berbasis angka nyata dari tool. Jangan pernah mengarang angka; kalau data tidak tersedia, katakan dan sebutkan dugaan penyebabnya. Format rupiah dengan pemisah ribuan.`,
       history: [],
       userMessage: instruction,
       roleCode: 'CEO',

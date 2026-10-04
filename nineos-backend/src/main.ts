@@ -30,7 +30,7 @@ async function bootstrap() {
   // Swagger — otomatis sync dengan dekorator @ApiTags / @ApiOperation
   const config = new DocumentBuilder()
     .setTitle('NineOS API Gateway')
-    .setDescription('Central dashboard API untuk platform: NotaBe, Krama, nineClip, Nine Studio')
+    .setDescription('Central dashboard API untuk platform: NotaBe, Krama')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

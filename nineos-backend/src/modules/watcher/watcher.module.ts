@@ -4,7 +4,7 @@ import { PlatformsModule } from '../platforms/platforms.module';
 import { PlatformWatcherService } from './platform-watcher.service';
 import { WatcherController } from './watcher.controller';
 
-// Agent proaktif: cron snapshot KPI + deteksi anomali + briefing pagi.
+// Agent proaktif: cron snapshot KPI + deteksi anomali + laporan malam 22:00 WIB.
 @Module({
   imports: [PlatformsModule, AgentModule],
   controllers: [WatcherController],
