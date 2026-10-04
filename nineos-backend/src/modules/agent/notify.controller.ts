@@ -17,11 +17,12 @@ export class NotifyController {
 
   @Get('status')
   @ApiOperation({ summary: 'Apakah notifikasi Telegram sudah terpasang' })
-  status() {
+  async status() {
     return {
       configured: this.notifier.configured,
       has_bot_token: Boolean(process.env.TELEGRAM_BOT_TOKEN),
       has_chat_id: Boolean(process.env.TELEGRAM_CHAT_ID),
+      bot: await this.notifier.whoAmI(),
     };
   }
 

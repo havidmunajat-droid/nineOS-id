@@ -88,6 +88,31 @@ export class NotifierService {
   }
 
   /**
+   * Bot mana yang sebenarnya dipegang token ini. Dipakai saat setup untuk
+   * memastikan kapten menyapa bot yang SAMA dengan token di Railway — salah
+   * satu penyebab paling umum discover() kosong.
+   */
+  async whoAmI(): Promise<{ ok: boolean; username?: string; name?: string; webhook_url?: string; error?: string }> {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) return { ok: false, error: 'TELEGRAM_BOT_TOKEN belum diisi' };
+    try {
+      const me = (await (await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(15000) })).json()) as {
+        ok: boolean;
+        description?: string;
+        result?: { username: string; first_name: string };
+      };
+      if (!me.ok) return { ok: false, error: `Telegram menolak token: ${me.description ?? 'tidak valid'}` };
+      // Kalau bot pernah dipasangi webhook, getUpdates selalu kosong/ditolak.
+      const wh = (await (await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`, { signal: AbortSignal.timeout(15000) })).json()) as {
+        result?: { url?: string };
+      };
+      return { ok: true, username: `@${me.result!.username}`, name: me.result!.first_name, webhook_url: wh.result?.url || undefined };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /**
    * Bantu mencari chat_id: baca pesan terakhir yang masuk ke bot. Kapten
    * cukup mengirim /start ke bot, lalu endpoint ini menampilkan chat_id-nya.
    */
