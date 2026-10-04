@@ -18,18 +18,37 @@ export interface PlatformKpi {
   outlets?: { total_toko?: number; new_toko?: number };
   pelanggan?: { total?: number; new_period?: number };
   quality?: { avg_rating?: number | null; reviews?: number };
+  /** Penjelasan arti revenue & gmv dari platform itu sendiri. */
+  definitions?: { revenue?: string; gmv?: string };
+  /** NotaBe: langganan paket toko — sumber pendapatan NotaBe. */
+  langganan?: {
+    pendapatan?: number; pembayaran_lunas?: number;
+    pembayaran_menunggu?: { count: number; jumlah: number };
+    toko_berbayar_aktif?: number; toko_trial_aktif?: number;
+    per_paket?: Record<string, number>; akan_berakhir_7_hari?: number;
+  };
   /** Hal yang menurut platform itu sendiri perlu tindakan sekarang. */
   attention?: AttentionItem[];
 }
 
-// Susun kartu metrik dari blok yang tersedia. Urutannya disengaja: uang dulu,
-// lalu volume, lalu kondisi lapangan — supaya baris pertama selalu menjawab
-// "berapa yang masuk hari ini".
+// Susun kartu metrik dari blok yang tersedia. Urutannya disengaja: PENDAPATAN
+// dulu, lalu nilai transaksi, lalu volume dan kondisi lapangan — supaya kartu
+// pertama selalu menjawab "berapa uang yang masuk ke kapten".
+//
+// Dua istilah dibedakan tegas (permintaan kapten, Okt 2026):
+// - Pendapatan     = uang yang menjadi milik kapten sebagai aplikator
+//                    (NotaBe: langganan lunas · Krama: penjualan poin mitra)
+// - Nilai Transaksi = uang yang LEWAT platform tapi milik toko/mitra
+//                    (dulu dilabeli GMV dan sering tertukar dengan revenue)
 export function kpiCards(kpi: PlatformKpi) {
-  const cards: { label: string; value: string | number; sub: string }[] = [];
+  const cards: { label: string; value: string | number; sub: string; hint?: string }[] = [];
   const o = kpi.overview;
-  if (o?.gmv !== undefined) cards.push({ label: 'GMV', value: rupiah(o.gmv), sub: 'dibayar pelanggan' });
-  if (o?.revenue !== undefined) cards.push({ label: 'Revenue', value: rupiah(o.revenue), sub: 'pendapatan platform' });
+  if (o?.revenue !== undefined) cards.push({ label: 'Pendapatan Aplikator', value: rupiah(o.revenue), sub: 'uang masuk ke kapten', hint: kpi.definitions?.revenue });
+  if (o?.gmv !== undefined) cards.push({ label: 'Nilai Transaksi', value: rupiah(o.gmv), sub: 'milik toko/mitra, bukan pendapatan', hint: kpi.definitions?.gmv });
+  if (kpi.langganan?.toko_berbayar_aktif !== undefined) {
+    const habis = kpi.langganan.akan_berakhir_7_hari ?? 0;
+    cards.push({ label: 'Toko Berbayar', value: kpi.langganan.toko_berbayar_aktif, sub: habis > 0 ? `${habis} habis dalam 7 hari` : 'langganan aktif' });
+  }
   if (kpi.orders) {
     cards.push({ label: 'Order', value: kpi.orders.total ?? 0, sub: `${kpi.orders.completed ?? 0} selesai · ${kpi.orders.cancelled ?? 0} batal` });
     if (kpi.orders.avg_order_value) cards.push({ label: 'Rata-rata Order', value: rupiah(kpi.orders.avg_order_value), sub: 'per order selesai' });

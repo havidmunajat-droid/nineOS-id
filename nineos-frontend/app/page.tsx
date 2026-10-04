@@ -153,7 +153,7 @@ export default function DashboardPage() {
               )}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                 {kpiCards(kpis[p.slug]).map(s => (
-                  <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
+                  <div key={s.label} title={s.hint} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
                     <p className="text-[12px] text-[var(--text-muted)]">{s.label}</p>
                     <p className="mt-1 text-[24px] font-bold text-[var(--text-primary)]">{s.value}</p>
                     <p className="text-[11px] text-[var(--text-muted)]">{s.sub}</p>

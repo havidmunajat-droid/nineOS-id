@@ -46,7 +46,7 @@ export class AgentToolsService {
     {
       name: 'get_platform_kpi',
       description:
-        'Ambil KPI LIVE terbaru langsung dari backend platform. NotaBe = kasir laundry (GMV, order, omzet, piutang, toko, pelanggan). Krama = super-app jasa lokal (GMV = total dibayar pelanggan termasuk ongkir, revenue = fee platform + biaya layanan, order per vertikal & metode bayar, order menunggu diambil, driver online, merchant buka, rating, SOS, penarikan dana mitra). Krama juga mengirim blok attention: daftar hal yang PERLU TINDAKAN sekarang — selalu sebutkan isinya ke kapten kalau tidak kosong. Pakai tool ini setiap kali ditanya angka terkini sebuah platform.',
+        'Ambil KPI LIVE terbaru langsung dari backend platform. PENTING soal uang: overview.revenue = PENDAPATAN APLIKATOR (uang yang masuk ke kapten), overview.gmv = NILAI TRANSAKSI (uang yang lewat platform tapi milik toko/mitra) — jangan pernah menyebut gmv sebagai pendapatan kapten. NotaBe = kasir laundry; pendapatannya dari paket langganan toko yang lunas (blok langganan: toko berbayar, per paket, yang habis dalam 7 hari); keuangan.* adalah keuangan TOKO, bukan NotaBe. Krama = super-app jasa lokal; pendapatannya dari penjualan poin ke mitra (finance.revenue_breakdown), gmv = total dibayar pelanggan termasuk ongkir, order per vertikal & metode bayar, order menunggu diambil, driver online, merchant buka, rating, SOS, penarikan dana mitra). Krama juga mengirim blok attention: daftar hal yang PERLU TINDAKAN sekarang — selalu sebutkan isinya ke kapten kalau tidak kosong. Pakai tool ini setiap kali ditanya angka terkini sebuah platform.',
       risk: 'read',
       parameters: {
         type: 'object',

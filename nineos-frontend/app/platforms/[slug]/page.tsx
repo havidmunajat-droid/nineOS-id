@@ -25,8 +25,26 @@ type KpiDetail = PlatformKpi & {
     platform_fee?: number; service_fee?: number; subsidy_given?: number;
     withdrawals_pending?: { count: number; amount: number };
     top_ups_paid?: { count: number; amount: number };
+    saldo_top_ups?: { count: number; amount: number };
+    revenue_breakdown?: Record<string, { count: number; amount: number }>;
   };
+  poin?: { terpakai_untuk_order?: number; diberikan_gratis?: number; saldo_beredar?: number };
 };
+
+const BREAKDOWN_LABEL: Record<string, string> = {
+  poin_dibeli_midtrans: 'Beli poin (Midtrans)',
+  poin_dari_saldo_dompet: 'Tukar saldo jadi poin',
+  fee_dipotong_dari_saldo: 'Fee dari saldo (poin habis)',
+};
+
+function MoneyRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className={strong ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}>{label}</dt>
+      <dd className={`tabular-nums ${strong ? 'font-bold text-[var(--status-success)]' : 'font-medium text-[var(--text-primary)]'}`}>{value}</dd>
+    </div>
+  );
+}
 
 type Period = 'today' | 'week' | 'month';
 const PERIODS: Array<[Period, string]> = [['today', 'Hari ini'], ['week', '7 hari'], ['month', '30 hari']];
@@ -228,7 +246,7 @@ export default function PlatformDetailPage() {
 
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                 {kpiCards(kpi).map((c) => (
-                  <div key={c.label} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
+                  <div key={c.label} title={c.hint} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
                     <p className="text-[12px] text-[var(--text-muted)]">{c.label}</p>
                     <p className="mt-1 text-[22px] font-bold text-[var(--text-primary)] tabular-nums">{c.value}</p>
                     <p className="text-[11px] text-[var(--text-muted)]">{c.sub}</p>
@@ -239,7 +257,7 @@ export default function PlatformDetailPage() {
                 <p className="-mt-3 text-[11px] text-[var(--text-muted)]">Periode: {kpi.window.label}</p>
               )}
 
-              {(kpi.orders?.by_vertical || kpi.finance) && (
+              {(kpi.orders?.by_vertical || kpi.finance || kpi.langganan) && (
                 <div className="grid gap-4 md:grid-cols-3">
                   {kpi.orders?.by_vertical && Object.keys(kpi.orders.by_vertical).length > 0 && (
                     <Breakdown title="Order per layanan" data={kpi.orders.by_vertical} />
@@ -247,24 +265,53 @@ export default function PlatformDetailPage() {
                   {kpi.orders?.by_payment && Object.keys(kpi.orders.by_payment).length > 0 && (
                     <Breakdown title="Metode bayar" data={kpi.orders.by_payment} />
                   )}
-                  {kpi.finance && (
+                  {kpi.finance?.revenue_breakdown && (
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
-                      <p className="mb-3 text-[13px] font-semibold text-[var(--text-primary)]">Rincian uang</p>
+                      <p className="mb-3 text-[13px] font-semibold text-[var(--text-primary)]">Pendapatan aplikator</p>
                       <dl className="flex flex-col gap-2 text-[12px]">
-                        {([
-                          ['Fee platform', kpi.finance.platform_fee],
-                          ['Biaya layanan', kpi.finance.service_fee],
-                          ['Subsidi diberikan', kpi.finance.subsidy_given],
-                          ['Top-up terbayar', kpi.finance.top_ups_paid?.amount],
-                          ['Penarikan menunggu', kpi.finance.withdrawals_pending?.amount],
-                        ] as Array<[string, number | undefined]>).filter(([, v]) => v !== undefined).map(([k, v]) => (
-                          <div key={k} className="flex justify-between gap-3">
-                            <dt className="text-[var(--text-muted)]">{k}</dt>
-                            <dd className="font-medium text-[var(--text-primary)] tabular-nums">{rupiah(v ?? 0)}</dd>
-                          </div>
+                        {Object.entries(kpi.finance.revenue_breakdown).map(([k, v]) => (
+                          <MoneyRow key={k} label={`${BREAKDOWN_LABEL[k] ?? k}${v.count ? ` · ${v.count}×` : ''}`} value={rupiah(v.amount)} />
                         ))}
+                        <MoneyRow label="Total masuk ke kapten" value={rupiah(kpi.overview?.revenue ?? 0)} strong />
+                      </dl>
+                      <p className="mb-2 mt-4 text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]">Bukan pendapatan</p>
+                      <dl className="flex flex-col gap-2 text-[12px]">
+                        {kpi.finance.saldo_top_ups && (
+                          <MoneyRow label="Top-up saldo pengguna (titipan)" value={rupiah(kpi.finance.saldo_top_ups.amount)} />
+                        )}
+                        {kpi.finance.withdrawals_pending && (
+                          <MoneyRow label="Penarikan mitra menunggu" value={rupiah(kpi.finance.withdrawals_pending.amount)} />
+                        )}
+                        {kpi.poin?.saldo_beredar !== undefined && (
+                          <MoneyRow label="Saldo poin mitra (termasuk gratis)" value={`${kpi.poin.saldo_beredar.toLocaleString('id-ID')} poin`} />
+                        )}
+                        {kpi.poin?.terpakai_untuk_order !== undefined && (
+                          <MoneyRow label="Poin terpakai periode ini" value={`${kpi.poin.terpakai_untuk_order.toLocaleString('id-ID')} poin`} />
+                        )}
                       </dl>
                     </div>
+                  )}
+                  {kpi.langganan && (
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
+                      <p className="mb-3 text-[13px] font-semibold text-[var(--text-primary)]">Pendapatan aplikator</p>
+                      <dl className="flex flex-col gap-2 text-[12px]">
+                        <MoneyRow label={`Langganan lunas · ${kpi.langganan.pembayaran_lunas ?? 0}×`} value={rupiah(kpi.langganan.pendapatan ?? 0)} strong />
+                        {(kpi.langganan.pembayaran_menunggu?.count ?? 0) > 0 && (
+                          <MoneyRow
+                            label={`Menunggu dibayar · ${kpi.langganan.pembayaran_menunggu!.count}×`}
+                            value={rupiah(kpi.langganan.pembayaran_menunggu!.jumlah)}
+                          />
+                        )}
+                        <MoneyRow label="Toko berbayar aktif" value={String(kpi.langganan.toko_berbayar_aktif ?? 0)} />
+                        <MoneyRow label="Toko masa trial" value={String(kpi.langganan.toko_trial_aktif ?? 0)} />
+                      </dl>
+                      <p className="mt-4 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                        Nilai transaksi laundry di atas adalah uang toko dengan pelanggannya — bukan pendapatan NotaBe.
+                      </p>
+                    </div>
+                  )}
+                  {kpi.langganan?.per_paket && Object.keys(kpi.langganan.per_paket).length > 0 && (
+                    <Breakdown title="Toko berbayar per paket" data={kpi.langganan.per_paket} />
                   )}
                 </div>
               )}
@@ -273,7 +320,7 @@ export default function PlatformDetailPage() {
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
             <div className="mb-4 flex items-baseline justify-between gap-3">
-              <p className="text-[14px] font-semibold text-[var(--text-primary)]">GMV harian</p>
+              <p className="text-[14px] font-semibold text-[var(--text-primary)]">Nilai transaksi harian</p>
               <p className="text-[11px] text-[var(--text-muted)]">dari rekaman watcher tiap jam · {days.length} hari</p>
             </div>
             {days.length === 0 ? (
